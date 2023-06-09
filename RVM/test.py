@@ -13,7 +13,7 @@ class vcSignals(QObject):
     status = pyqtSignal(str,bool)
     
 class vc(QMutex):
-    '''holds the videoCapture object and surrounding functions'''
+    """holds the videoCapture object and surrounding functions"""
     
     def __init__(self, cameraName:str, diag:int, fps:int, prevFPS:int, recFPS:int):
         super(vc,self).__init__()
@@ -28,7 +28,7 @@ class vc(QMutex):
         self.updatePrevFPS(prevFPS)
         
     def updateStatus(self, msg:str, log:bool):
-        '''update the status bar by sending a signal'''
+        """update the status bar by sending a signal"""
         self.signals.status.emit(str(msg), log)
         
     def updateFPS(self, fps):
@@ -40,7 +40,7 @@ class vc(QMutex):
         self.prevmspf = int(round(1000./self.previewFPS))
 
 class webcamVC(vc):
-    '''holds a videoCapture object that reads frames from a webcam. lock this so only one thread can collect frames at a time'''
+    """holds a videoCapture object that reads frames from a webcam. lock this so only one thread can collect frames at a time"""
     
     def __init__(self, webcamNum:int, cameraName:str, width:int, height:int, fps:int, prevFPS:int, recFPS:int):
         super(webcamVC,self).__init__(cameraName, 0, fps, prevFPS, recFPS)
@@ -67,7 +67,7 @@ class webcamVC(vc):
         self.imh = int(self.camDevice.get(4))               # image height (px)
             
     def getFrameRate(self) -> float:
-        '''Determine the native device frame rate'''
+        """Determine the native device frame rate"""
         fps = self.camDevice.get(cv2.CAP_PROP_FPS)/2 # frames per second
         if fps>0:
             return int(fps)
@@ -76,11 +76,11 @@ class webcamVC(vc):
             return 0
 
     def getExposure(self):
-        '''Read the current exposure on the camera'''
+        """Read the current exposure on the camera"""
         return 1000*2**self.camDevice.get(cv2.CAP_PROP_EXPOSURE)
     
     def readFrame(self):
-        '''get a frame from the webcam using cv2 '''
+        """get a frame from the webcam using cv2 """
         try:
             rval, frame = self.camDevice.read()
         except:
@@ -96,21 +96,22 @@ class webcamVC(vc):
         # return np.zeros((self.imh, self.imw, 3), dtype='uint8')
 
     def close(self):
-        '''close the videocapture object'''
+        """close the videocapture object"""
         if hasattr(self, 'camDevice') and not self.camDevice==None:
             try:
                 self.camDevice.release()
             except Exception as e:
+                print(f'Failed to release cam device for {self.cameraName}: {e}')
                 self.updateStatus(f'Failed to release cam device for {self.cameraName}: {e}')
                 pass
 
 class prevSignals(QObject):
-    '''Defines the signals available from a running worker thread
+    """Defines the signals available from a running worker thread
         Supported signals are:
         finished: No data
         error: a string message and a bool whether this is worth printing to the log
         result:`object` data returned from processing, anything
-        progress: `int` indicating % progress '''
+        progress: `int` indicating % progress """
     
     finished = pyqtSignal()
     error = pyqtSignal(str, bool)
@@ -119,9 +120,9 @@ class prevSignals(QObject):
 
             
 class previewer(QObject):
-    '''previewer puts preview frame collection into the background, so frames from different cameras can be collected in parallel. vc is a vc object (defined in camObj)'''
+    """previewer puts preview frame collection into the background, so frames from different cameras can be collected in parallel. vc is a vc object (defined in camObj)"""
     
-    def __init__(self, vc:QMutex):
+    def __init__(self, vc:webcamVC):
         super(previewer, self).__init__()
         self.signals = prevSignals()
         self.vc = vc
@@ -142,7 +143,7 @@ class previewer(QObject):
         
     @pyqtSlot()    
     def run(self) -> None:
-        '''Run this function when this thread is started. Collect a frame and return to the gui'''
+        """Run this function when this thread is started. Collect a frame and return to the gui"""
         if self.diag>1:
             # if we're in super debug mode, print header for the table of frames
             self.signals.progress.emit('Camera name\t\tFrame t\tTotal t\tRec t\tSleep t\tAdj t')
@@ -152,13 +153,16 @@ class previewer(QObject):
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.start(self.mspf)
         self.timerRunning = True
+        framerate = 1000/self.mspf
+        print(f'Previewing {self.cameraName} at {framerate:.1f} fps')
                 
     def loop(self):
-        '''run this on each loop iteration'''
+        """run this on each loop iteration"""
         self.lastTime = self.dnow
         self.dnow = datetime.datetime.now()
         frame = self.readFrame()  # read the frame
         if not self.cont:
+            # end all running events
             self.timer.stop()
             self.signals.finished.emit()
             return
@@ -166,7 +170,7 @@ class previewer(QObject):
 
     @pyqtSlot()
     def readFrame(self):
-        '''get a frame from the camera'''
+        """get a frame from the camera"""
         try:
             self.vc.lock()     # lock camera so only this thread can read frames
             frame = self.vc.readFrame() # read the frame
@@ -193,20 +197,22 @@ class previewer(QObject):
         return frame
     
     def sendFrame(self, frame:np.ndarray, pad:bool):
-        '''send a frame to the GUI'''
-        
+        """send a frame to the GUI"""
         self.signals.frame.emit(frame, pad)  # send the frame back to be displayed and recorded
         
     def sendNewFrame(self, frame):
-        '''send a new frame back to the GUI'''
+        """send a new frame back to the GUI"""
         self.sendFrame(frame, False)
                     
     def close(self):
         if hasattr(self, 'timer') and self.timer.isActive():
             self.timer.stop()
+        print(f'Closing previewer for {self.cameraName}')
+        # lock the vc and set cont to false so it stops
+        self.vc.lock()
+        self.vc.previewing = False
         self.cont = False
-        
-        self.signals.finished.emit()
+        self.vc.unlock()
 
 class App(QMainWindow):
     def __init__(self):
@@ -258,6 +264,9 @@ class App(QMainWindow):
         frame = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
         self.preview.setPixmap(QPixmap.fromImage(frame))
 
+        framerate = 1/(datetime.datetime.now()-self.previewer.lastTime).total_seconds()
+        self.updateStatus(f'Framerate: {framerate:.2f} fps')
+
     def updateStatus(self, msg, error=False):
         """Update the status bar"""
         if error:
@@ -265,6 +274,21 @@ class App(QMainWindow):
         else:
             self.statusBar().setStyleSheet('color: black')
         self.statusBar().showMessage(msg)
+
+    def closePreviewer(self):
+        """Close the previewer and threads"""
+        print('Closing previewer')
+        self.previewThread.quit()
+        self.previewThread.wait()
+
+    def closeEvent(self, event):
+        """Close the window"""
+        self.previewer.close()
+        # on finished signal, quit the thread and wait for it to finish
+        self.previewThread.finished.connect(self.closePreviewer)
+
+
+
         
 
 if __name__ == '__main__':
