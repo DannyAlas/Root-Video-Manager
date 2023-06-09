@@ -1,6 +1,4 @@
-from re import T
-import typing
-from PyQt6 import QtCore
+from PyQt6 import QtGui
 import cv2
 from PyQt6.QtCore import QObject, pyqtSignal, QMutex, pyqtSlot, QTimer, Qt, QThread
 from PyQt6.QtGui import QImage, QPixmap
@@ -198,8 +196,15 @@ class previewer(QObject):
     
     def sendFrame(self, frame:np.ndarray, pad:bool):
         """send a frame to the GUI"""
+        # modify the frame to fit the window
         self.signals.frame.emit(frame, pad)  # send the frame back to be displayed and recorded
         
+    def resizeEvent(self, width, height):
+        """Resizes the frame to fit the window"""
+        if len(self.lastFrame)>0:
+            frame = self.lastFrame[0]
+            self.sendFrame(frame, True)
+            
     def sendNewFrame(self, frame):
         """send a new frame back to the GUI"""
         self.sendFrame(frame, False)
@@ -223,17 +228,55 @@ class App(QMainWindow):
         self.width = 640
         self.height = 480
         self.cameras = []
+        self.previewers = []
         self.initUI()
 
     def initUI(self):
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)        
         self.statusBar().showMessage('Ready')
-        self.createPreviewer()
+        cameras = self.get_cameras()
+        for i in cameras:
+            self.createPreviewer(i, f'Camera {i}')
 
         self.show()
+        
+    def get_cameras(self):
+        cameras = []
+        for i in range(10):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                cameras.append(i)
+        return cameras
 
-    def createPreviewer(self):
+    def createPreviewer(self, cam_id: int, cam_name: str = None, width: int = 1920, height: int = 1080, fps: int = 30, prevfps: int = 30, recfps: int = 0):
+        """Camera previewer"""
+        # camera previewer label
+        preview = QLabel()
+        preview.resize(width, height)
+        preview.move(0,0)
+        preview.setScaledContents(True)
+
+        self.previewers.append(preview)
+        
+        # camera previewer thread
+        previewThread = QThread()
+        previewThread.start()
+        self.cameras.append(webcamVC(cam_id, cam_name, width, height, fps, precfps=prevfps, recfps=recfps))
+        previewer_ = previewer(self.cameras[-1])
+        previewer_.moveToThread(previewThread)
+        previewer_.signals.frame.connect(self.updatePreview)
+        previewer_.signals.error.connect(self.updateStatus)
+        previewer_.signals.progress.connect(self.updateStatus)
+        previewer_.signals.finished.connect(previewThread.quit)
+        previewer_.signals.finished.connect(previewer_.deleteLater)
+        previewer_.signals.finished.connect(previewThread.deleteLater)
+        previewer_.run()
+        preview.show()
+        
+        
+
+    def createPreviewer_(self, cam_id: int):
         """Camera previewer"""
         # camera previewer window
         self.preview = QLabel(self)
@@ -245,7 +288,7 @@ class App(QMainWindow):
         # camera previewer thread
         self.previewThread = QThread()
         self.previewThread.start()
-        self.cameras.append(webcamVC(0, 'cam1', 1920, 1080, 30, 30, 30))
+        self.cameras.append(webcamVC(0, 'cam1', 1080, 720, 30, 30, 30))
         self.previewer = previewer(self.cameras[0])
         self.previewer.moveToThread(self.previewThread)
         self.previewer.signals.frame.connect(self.updatePreview)
@@ -256,11 +299,22 @@ class App(QMainWindow):
         self.previewer.signals.finished.connect(self.previewThread.deleteLater)
         self.previewer.run()
 
+    def resizeEvent(self, event):
+        """Resize the preview window"""
+        self.width = self.size().width()
+        self.height = self.size().height()
+
     def updatePreview(self, frame, pad):
         """Update the preview window"""
         if pad:
             frame = cv2.copyMakeBorder(frame, 0, 0, 0, 0, cv2.BORDER_CONSTANT, value=[0,0,0])
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # modify the frame to fit the window
+        
+        # resize the frame to fit the window
+        self.previewer.vc.lock()
+        self.preview.resize(self.width, self.height)
+        self.previewer.vc.unlock()
         frame = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888)
         self.preview.setPixmap(QPixmap.fromImage(frame))
 
@@ -287,9 +341,6 @@ class App(QMainWindow):
         # on finished signal, quit the thread and wait for it to finish
         self.previewThread.finished.connect(self.closePreviewer)
 
-
-
-        
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
