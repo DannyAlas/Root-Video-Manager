@@ -1,4 +1,6 @@
 import os
+from tkinter import E
+from typing import Literal
 from PyQt6 import QtCore, QtGui, QtWidgets
 from threading import Thread
 from collections import deque
@@ -24,19 +26,19 @@ class MainWinodw(QtWidgets.QMainWindow):
     
     def initSettings(self):
         latest_project_location = self.qtsettings.value("latest_project_location")
-        print(latest_project_location)
         # try to load the latest project
         if latest_project_location is not None:
             try:
                 with open(os.path.join(latest_project_location, "settings.json")) as f:
                     self.projectSettings = ProjectSettings.fromJson(f.read())
             except:
-                return
+                self.statusBar().showMessage("Failed to load the latest project settings")
         # set position and size of the window from the settings
         try:
             self.loadProject(self.projectSettings)
+            self.statusBar().showMessage(f"Loaded the latest project settings for {self.projectSettings.project_name}")
         except:
-            return
+            self.statusBar().showMessage("Failed to load the project settings")
 
     def initUI(self):
         # create toolbar
@@ -80,34 +82,24 @@ class MainWinodw(QtWidgets.QMainWindow):
         self.settingsAction.triggered.connect(self.settingsWindow)
         self.fileMenu.addAction(self.settingsAction)
 
-        # the main widget will have 2 parts, the left part will be the list of boxes and the right part will be the selected boxs settings
-
-        # create a widget for the left part
-        self.boxListWidget = BoxListWidget(self.projectSettings)
-
+        # allow dock widgets to be moved
+        self.setDockOptions(QtWidgets.QMainWindow.DockOption.AllowTabbedDocks | QtWidgets.QMainWindow.DockOption.AllowNestedDocks)
 
         # create a widget for the right part
-        self.boxSettingsWidget = QtWidgets.QWidget()
-        self.boxSettingsWidgetLayout = QtWidgets.QVBoxLayout()
-        self.boxSettingsWidget.setLayout(self.boxSettingsWidgetLayout)
-        self.boxSettingsWidget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
-        self.boxSettingsWidget.setStyleSheet("background-color: rgb(50, 50, 50);")
+        self.boxSettingsWidget = BoxSettingsWidget()
 
-        # create a splitter for the left and right part
-        self.boxListSettingsSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
-        self.boxListSettingsSplitter.addWidget(self.boxListWidget)
-        self.boxListSettingsSplitter.addWidget(self.boxSettingsWidget)
-        self.boxListSettingsSplitter.setStretchFactor(0, 1)
-        self.boxListSettingsSplitter.setStretchFactor(1, 3)
-        self.boxListSettingsSplitter.setStyleSheet("background-color: rgb(50, 50, 50);")
+        # create a widget for the left part
+        self.boxListWidget = BoxListWidget(self.projectSettings.boxes, self.boxSettingsWidget)
+
+
+        # add the dock widgets
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.boxListWidget)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.boxSettingsWidget)
+        
 
         # create a status bar
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
-
-        # add the widgets to the main window
-        self.setCentralWidget(self.boxListSettingsSplitter)
-
 
         # # create a combobox for selecting the video device
         # self.videoDeviceComboBox = QtWidgets.QComboBox()
@@ -125,6 +117,15 @@ class MainWinodw(QtWidgets.QMainWindow):
         # self.toolbar.addWidget(self.videoDeviceComboBox)
         # self.toolbar.addWidget(self.startVideoStreamButton)
 
+    def messageBox(self, title, text, severity: Literal[QtWidgets.QMessageBox.Icon.Information, QtWidgets.QMessageBox.Icon.Warning, QtWidgets.QMessageBox.Icon.Critical] = QtWidgets.QMessageBox.Icon.Information):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(severity)
+        msg.setText(text)
+        msg.setWindowTitle(title)
+        okay = msg.addButton("Okay", QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+        msg.setDefaultButton(okay)
+        msg.exec()
+
     def newProjectWindow(self):
         # create a new project window
         self.newProjectWindow = NewProjectWindow(parent=self)
@@ -141,8 +142,9 @@ class MainWinodw(QtWidgets.QMainWindow):
             with open(os.path.join(dir, "settings.json")) as f:
                 self.projectSettings = ProjectSettings.fromJson(f.read())
             self.loadProject(self.projectSettings)
-        except:
-            return
+        except Exception as e:
+            # pop up a error message
+            self.messageBox("Error", f"Failed to load project: {e}", QtWidgets.QMessageBox.Icon.Critical)
 
     def settingsWindow(self):
         self.newSettingsWindow = ProjectSettingsWindow(self.projectSettings, parent=self)
@@ -206,6 +208,7 @@ class MainWinodw(QtWidgets.QMainWindow):
         # save position and size of the window
         self.projectSettings.window_position = (self.pos().x(), self.pos().y())
         self.projectSettings.window_size = (self.size().width(), self.size().height())
+        
 
         # save the settings to a json file
         self.projectSettings.save()
@@ -215,74 +218,158 @@ class MainWinodw(QtWidgets.QMainWindow):
         self.saveSettings()        
         event.accept()
 
+# signal for when the list item is clicked 
+class BoxListItemSignals(QtCore.QObject):
+    clicked = QtCore.pyqtSignal(Box)
+    checked = QtCore.pyqtSignal(bool)
+class BoxListItem(QtWidgets.QListWidgetItem):
+
+    def __init__(self, box: Box, parent=None):
+        super(BoxListItem, self).__init__(parent)
+        self.box = box
+        self.signals = BoxListItemSignals()
+        self.parent = parent
+        
+        self.setText(box.box)
+        self.setFlags(QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+        self.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        self.setSelected(False)
+
+    def setSelected(self, aselect: bool) -> None:
+        print("set selected")
+        self.signals.clicked.emit(self.box)
+        super(BoxListItem, self).setSelected(aselect)
+
+    def event(self, event):
+        print("event")
+        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            self.signals.clicked.emit(self.box)
+        return super(BoxListItem, self).event(event)
+        
 class BoxListWidget(QtWidgets.QDockWidget):
 
-    def __init__(self, projectSettings: ProjectSettings, parent=None):
+    def __init__(self, projectSettingsBoxes, settingsWindow, parent=None):
         super(BoxListWidget, self).__init__(parent=parent)
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.boxes = projectSettingsBoxes
+        self.settingsWindow = settingsWindow
         self.initUI()
 
     def initUI(self):
-        # remove the title bar
-        self.setTitleBarWidget(QtWidgets.QWidget())
-        
-        # create an upper widget for buttons and a lower widget for the list
-        self.upperWidget = QtWidgets.QWidget()
-        self.lowerWidget = QtWidgets.QWidget()
+        # add name to the dock widget
+        self.setWindowTitle("Box List")
 
-        # create a layout for the upper widget
-        self.upperWidgetLayout = QtWidgets.QHBoxLayout()
-        self.upperWidgetLayout.setContentsMargins(0, 0, 0, 0)
-        self.upperWidgetLayout.setSpacing(0)
-        self.upperWidget.setLayout(self.upperWidgetLayout)
+        # create a new box button
+        self.newBoxButton = QtWidgets.QPushButton("New Box")
+        self.newBoxButton.clicked.connect(self.newBox)
 
-        # create a layout for the lower widget
-        self.lowerWidgetLayout = QtWidgets.QVBoxLayout()
-        self.lowerWidgetLayout.setContentsMargins(0, 0, 0, 0)
-        self.lowerWidgetLayout.setSpacing(0)
-        self.lowerWidget.setLayout(self.lowerWidgetLayout)
+        # create the box list
+        self.listWidget = QtWidgets.QListWidget()
+        self.listWidget.itemClicked.connect(lambda item: self.settingsWindow.showBoxSettings(item.box))
 
-        # create a button for adding a new box
-        self.addBoxButton = QtWidgets.QPushButton("Add Box")
-        self.addBoxButton.setIcon(QtGui.QIcon(os.path.join(os.path.dirname(__file__), "icons", "add.png")))
-        self.addBoxButton.clicked.connect(self.addBox)
+        # set the layout and add the widgets
+        self.layout = QtWidgets.QVBoxLayout()
+        self.layout.addWidget(self.newBoxButton)
+        self.layout.addWidget(self.listWidget)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
-        # add the button to the upper widget
-        self.upperWidgetLayout.addWidget(self.addBoxButton)
+        # create a new widget for the layout
+        self.newWidget = QtWidgets.QWidget()
+        self.newWidget.setLayout(self.layout)
 
-        # create a scroll area for the lower widget
-        self.lowerWidgetScrollArea = QtWidgets.QScrollArea()
-        self.lowerWidgetScrollArea.setWidgetResizable(True)
-        self.lowerWidgetScrollArea.setWidget(self.lowerWidget)
+        # add the boxes to the list
+        for box in self.boxes:
+            # add the item to the list
+            self.addBox(box)
 
-        # create a layout for the widget
-        self.widgetLayout = QtWidgets.QVBoxLayout()
-        self.widgetLayout.setContentsMargins(0, 0, 0, 0)
-        self.widgetLayout.setSpacing(0)
-        self.widgetLayout.addWidget(self.upperWidget)
-        self.widgetLayout.addWidget(self.lowerWidgetScrollArea)
+        # show the dock widget
+        self.setWidget(self.newWidget)
+        self.show()
 
-        # create a widget for the dock
-        self.widget = QtWidgets.QWidget()
-        self.widget.setLayout(self.widgetLayout)
-    
+    # override closeEvent to hide the dock widget instead of closing it
+    def closeEvent(self, event):
+        self.hide()
+        event.ignore()
 
+    def showEvent(self, event):
+        self.update()
+        event.accept()
 
-    def addBox(self):
+    def newBox(self):
         # create a new box
-        newBox = QtWidgets.QWidget()
-        newBoxLayout = QtWidgets.QHBoxLayout()
-        newBox.setLayout(newBoxLayout)
-        newBox.setFixedHeight(50)
-        newBox.setContentsMargins(0, 0, 0, 0)
-
-
-
-
-        
+        newBox = Box()
+        # append the box to the list
+        self.boxes.append(newBox)
+        # add the box to the list
+        self.addBox(newBox)
     
-        # add the box to the lower widget
-        self.lowerWidgetLayout.addWidget(newBox)
+    def addBox(self, box: Box):
+        if box is None:
+            return
+        # create a new list item
+        listItem = BoxListItem(box=box, parent=self.listWidget)
+        # bind the setSelected event to print
+        listItem.signals.clicked.connect(lambda: print("selected"))
+        
+        # make the list item checkable
+        listItem.setFlags(listItem.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+        # set the list item to unchecked
+        listItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        # set the list item text to the box name
+        listItem.setText(f"Box {box.box}")
+        # add the list item to the list
+        self.listWidget.addItem(listItem)
 
+class BoxSettingsWidget(QtWidgets.QDockWidget):
+    """A box settings dock widget"""
+
+    def __init__(self, parent=None):
+        super(BoxSettingsWidget, self).__init__(parent=parent)
+        # set all dock widget features
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.initUI()
+
+    def initUI(self):
+        self.boxSettingsLayout = QtWidgets.QVBoxLayout()
+        # add name to the dock widget
+        self.setWindowTitle(f"Box Settings")
+        
+        # create a new widget for the layout
+        self.newWidget = QtWidgets.QWidget()
+        self.newWidget.setLayout(self.boxSettingsLayout)
+
+
+    def showBoxSettings(self, box: Box):
+        # update the title of the dock widget
+        self.setWindowTitle(f"Box {box.box} Settings")
+        # Lineedit for the box name
+        self.boxNameLineEdit = QtWidgets.QLineEdit(box.box)
+        # Lineedit for the boxes subject
+        self.boxSubjectLineEdit = QtWidgets.QLineEdit(box.subject)
+        # combobox for the boxes cameras
+        self.boxCamerasComboBox = QtWidgets.QComboBox()
+
+        # add the cameras to the combobox
+        for camera in range(1, 5):
+            self.boxCamerasComboBox.addItem(f"Camera {camera}")
+
+        # create a new layout for the box settings
+        self.boxSettingsLayout = QtWidgets.QVBoxLayout()
+        self.boxSettingsLayout.addWidget(self.boxNameLineEdit)
+        self.boxSettingsLayout.addWidget(self.boxSubjectLineEdit)
+        self.boxSettingsLayout.addWidget(self.boxCamerasComboBox)
+
+        # create a new widget for the layout
+        self.boxSettingsWidget = QtWidgets.QWidget()
+        self.boxSettingsWidget.setLayout(self.boxSettingsLayout)
+
+        # set the widget for the dock widget
+        self.setWidget(self.boxSettingsWidget)
+
+    def saveCurrentBoxSettings(self):
+        # get the current box settings
+        print(self.boxNameLineEdit.text())
 
 # signal for passing the project settings to the main window
 class NewProjectWindowSignals(QtCore.QObject):

@@ -59,6 +59,11 @@ class Box(pydantic.BaseSettings):
     def json(self):
         return json.dumps(self.dict(), indent=4)
 
+    def fromJson(json_string):
+        data = json.loads(json_string)
+        data["trials"] = [Trial.fromJson(trial) for trial in data["trials"]]
+        return Box(**data)
+
 class ProjectSettings(pydantic.BaseSettings):
     project_name: str = "ProjectName"
     start_date: datetime.date = datetime.datetime.now()
