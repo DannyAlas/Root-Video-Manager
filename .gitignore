@@ -2,3 +2,5 @@ __pycache__
 Scripts/
 Include/
 Lib/
+windows_capture*/
+ffmpeg-master*/
