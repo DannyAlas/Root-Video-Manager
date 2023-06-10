@@ -1,3 +1,4 @@
+from re import U
 import pandas
 import pydantic
 import json
@@ -44,15 +45,27 @@ class Box(pydantic.BaseSettings):
     subject: str = "MouseID"
     genotype: str = "Genotype"
     camera: str = "CameraAltID"
-    trials: list[Trial] = [Trial]
-    
+    trials: list[Trial] = []
+
+    def dict(self):
+        return {
+            "box": self.box,
+            "subject": self.subject,
+            "genotype": self.genotype,
+            "camera": self.camera,
+            "trials": [trial.dict() for trial in self.trials]
+        }
+
+    def json(self):
+        return json.dumps(self.dict(), indent=4)
+
 class ProjectSettings(pydantic.BaseSettings):
     project_name: str = "ProjectName"
     start_date: datetime.date = datetime.datetime.now()
     project_location: str = os.getcwd()
     window_size: tuple[int, int] = (1280, 720)
     window_position: tuple[int, int] = (0, 0)
-    boxes: Union[list[Box], None] = None
+    boxes: list[Box] = []
 
     def dict(self):
         return {
@@ -61,7 +74,7 @@ class ProjectSettings(pydantic.BaseSettings):
             "project_location": self.project_location,
             "window_size": self.window_size,
             "window_position": self.window_position,
-            "boxes": self.boxes
+            "boxes": [box.dict() for box in self.boxes]
         }
 
     def json(self):

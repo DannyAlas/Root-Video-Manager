@@ -83,7 +83,7 @@ class MainWinodw(QtWidgets.QMainWindow):
         # the main widget will have 2 parts, the left part will be the list of boxes and the right part will be the selected boxs settings
 
         # create a widget for the left part
-        self.initBoxListWidget()
+        self.boxListWidget = BoxListWidget(self.projectSettings)
 
 
         # create a widget for the right part
@@ -97,8 +97,8 @@ class MainWinodw(QtWidgets.QMainWindow):
         self.boxListSettingsSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.boxListSettingsSplitter.addWidget(self.boxListWidget)
         self.boxListSettingsSplitter.addWidget(self.boxSettingsWidget)
-        self.boxListSettingsSplitter.setStretchFactor(0, 0)
-        self.boxListSettingsSplitter.setStretchFactor(1, 1)
+        self.boxListSettingsSplitter.setStretchFactor(0, 1)
+        self.boxListSettingsSplitter.setStretchFactor(1, 3)
         self.boxListSettingsSplitter.setStyleSheet("background-color: rgb(50, 50, 50);")
 
         # create a status bar
@@ -124,30 +124,6 @@ class MainWinodw(QtWidgets.QMainWindow):
         # # add the combobox and button to the toolbar
         # self.toolbar.addWidget(self.videoDeviceComboBox)
         # self.toolbar.addWidget(self.startVideoStreamButton)
-
-    def initBoxListWidget(self) -> QtWidgets.QWidget:
-        self.boxListWidget = QtWidgets.QWidget()
-        self.boxListWidgetLayout = QtWidgets.QVBoxLayout()
-        self.boxListWidget.setLayout(self.boxListWidgetLayout)
-        self.boxListWidget.setMinimumWidth(200)
-        self.boxListWidget.setMaximumWidth(200)
-        self.boxListWidget.setSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding)
-        self.boxListWidget.setStyleSheet("background-color: rgb(50, 50, 50);")
-
-        # create a button for adding a new box
-        self.addBoxButton = QtWidgets.QPushButton()
-        self.addBoxButton.clicked.connect(self.addBox)
-        self.addBoxButton.setToolTip("Add a new box")
-        self.addBoxButton.setIcon(QtGui.QIcon(os.path.join(self.icons_dir, "add.png")))
-
-        # add the button to the layout
-        self.boxListWidgetLayout.addWidget(self.addBoxButton)
-
-    def addBox(self):
-        # add a new box to the project
-        box = Box()
-        self.projectSettings.boxes.append(box)
-        self.reloadProject()
 
     def newProjectWindow(self):
         # create a new project window
@@ -238,6 +214,74 @@ class MainWinodw(QtWidgets.QMainWindow):
         # stop all camera streams
         self.saveSettings()        
         event.accept()
+
+class BoxListWidget(QtWidgets.QDockWidget):
+
+    def __init__(self, projectSettings: ProjectSettings, parent=None):
+        super(BoxListWidget, self).__init__(parent=parent)
+        self.initUI()
+
+    def initUI(self):
+        # remove the title bar
+        self.setTitleBarWidget(QtWidgets.QWidget())
+        
+        # create an upper widget for buttons and a lower widget for the list
+        self.upperWidget = QtWidgets.QWidget()
+        self.lowerWidget = QtWidgets.QWidget()
+
+        # create a layout for the upper widget
+        self.upperWidgetLayout = QtWidgets.QHBoxLayout()
+        self.upperWidgetLayout.setContentsMargins(0, 0, 0, 0)
+        self.upperWidgetLayout.setSpacing(0)
+        self.upperWidget.setLayout(self.upperWidgetLayout)
+
+        # create a layout for the lower widget
+        self.lowerWidgetLayout = QtWidgets.QVBoxLayout()
+        self.lowerWidgetLayout.setContentsMargins(0, 0, 0, 0)
+        self.lowerWidgetLayout.setSpacing(0)
+        self.lowerWidget.setLayout(self.lowerWidgetLayout)
+
+        # create a button for adding a new box
+        self.addBoxButton = QtWidgets.QPushButton("Add Box")
+        self.addBoxButton.setIcon(QtGui.QIcon(os.path.join(os.path.dirname(__file__), "icons", "add.png")))
+        self.addBoxButton.clicked.connect(self.addBox)
+
+        # add the button to the upper widget
+        self.upperWidgetLayout.addWidget(self.addBoxButton)
+
+        # create a scroll area for the lower widget
+        self.lowerWidgetScrollArea = QtWidgets.QScrollArea()
+        self.lowerWidgetScrollArea.setWidgetResizable(True)
+        self.lowerWidgetScrollArea.setWidget(self.lowerWidget)
+
+        # create a layout for the widget
+        self.widgetLayout = QtWidgets.QVBoxLayout()
+        self.widgetLayout.setContentsMargins(0, 0, 0, 0)
+        self.widgetLayout.setSpacing(0)
+        self.widgetLayout.addWidget(self.upperWidget)
+        self.widgetLayout.addWidget(self.lowerWidgetScrollArea)
+
+        # create a widget for the dock
+        self.widget = QtWidgets.QWidget()
+        self.widget.setLayout(self.widgetLayout)
+    
+
+
+    def addBox(self):
+        # create a new box
+        newBox = QtWidgets.QWidget()
+        newBoxLayout = QtWidgets.QHBoxLayout()
+        newBox.setLayout(newBoxLayout)
+        newBox.setFixedHeight(50)
+        newBox.setContentsMargins(0, 0, 0, 0)
+
+
+
+
+        
+    
+        # add the box to the lower widget
+        self.lowerWidgetLayout.addWidget(newBox)
 
 
 # signal for passing the project settings to the main window
