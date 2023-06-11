@@ -4,6 +4,7 @@ from RVM.bases import Trial
 from datetime import datetime
 import os
 
+
 class Loader:
     def __init__(self, data_txt=None):
         self.data_savable = False
@@ -15,9 +16,13 @@ class Loader:
             lines = f.readlines()
         for i, line in enumerate(lines):
             if line.__contains__("Start Date"):
-                self.start_date = datetime.strptime(line.split(":")[1].strip(), "%m/%d/%y")
+                self.start_date = datetime.strptime(
+                    line.split(":")[1].strip(), "%m/%d/%y"
+                )
             if line.__contains__("End Date"):
-                self.end_date = datetime.strptime(line.split(":")[1].strip(), "%m/%d/%y")
+                self.end_date = datetime.strptime(
+                    line.split(":")[1].strip(), "%m/%d/%y"
+                )
             if line.__contains__("Subject"):
                 self.subject = line.split(":")[1].strip()
             if line.__contains__("Box"):
@@ -25,20 +30,32 @@ class Loader:
             if line.__contains__("Start Time"):
                 # time will be in hours:minutes:seconds
                 # convert to datetime object with the start date
-                self.start_time = datetime.strptime(line.strip("Start Time: ").strip("\n"), "%H:%M:%S")
+                self.start_time = datetime.strptime(
+                    line.strip("Start Time: ").strip("\n"), "%H:%M:%S"
+                )
                 # set the date of the start time to the start date
-                self.start_time = self.start_time.replace(year=self.start_date.year, month=self.start_date.month, day=self.start_date.day).strftime("%Y-%m-%d_%Hh%Mm%Ss")
+                self.start_time = self.start_time.replace(
+                    year=self.start_date.year,
+                    month=self.start_date.month,
+                    day=self.start_date.day,
+                ).strftime("%Y-%m-%d_%Hh%Mm%Ss")
             if line.__contains__("End Time"):
                 # time will be in hours:minutes:seconds
                 # convert to datetime object with the start date
-                self.end_time = datetime.strptime(line.strip("End Time: ").strip("\n"), "%H:%M:%S")
+                self.end_time = datetime.strptime(
+                    line.strip("End Time: ").strip("\n"), "%H:%M:%S"
+                )
                 # set the date of the start time to the start date
-                self.end_time = self.end_time.replace(year=self.start_date.year, month=self.start_date.month, day=self.start_date.day).strftime("%Y-%m-%d_%Hh%Mm%Ss")
+                self.end_time = self.end_time.replace(
+                    year=self.start_date.year,
+                    month=self.start_date.month,
+                    day=self.start_date.day,
+                ).strftime("%Y-%m-%d_%Hh%Mm%Ss")
             if line.__contains__("MSN"):
                 self.protocal_name = line.split(":")[1].strip()
             if line.__contains__("C:\n"):
                 # the next lines till the end of the file are the data
-                data = lines[i+1:]
+                data = lines[i + 1 :]
                 # save the data to a temp csv file
                 with open("temp.txt", "w") as f:
                     f.writelines(data)
@@ -69,9 +86,9 @@ class Loader:
                 # save the data to a csv file
                 # get the longest list and make all lists that length with Null values
                 max_len = max(len(csp), len(csm), len(shock))
-                csp = csp + [None]*(max_len-len(csp))
-                csm = csm + [None]*(max_len-len(csm))
-                shock = shock + [None]*(max_len-len(shock))
+                csp = csp + [None] * (max_len - len(csp))
+                csm = csm + [None] * (max_len - len(csm))
+                shock = shock + [None] * (max_len - len(shock))
                 self.outdf["CS+ TS's"] = csp
                 self.outdf["CS- TS's"] = csm
                 self.outdf["Shock TS's"] = shock
@@ -80,9 +97,26 @@ class Loader:
 
     def save(self, dir_path):
         if self.data_savable:
-            trial = Trial(start_time=self.start_time, end_time=self.end_time, subject=self.subject, box=self.box, protocal_name=self.protocal_name, data=self.outdf, original_data_location=self.original_data_location)
+            trial = Trial(
+                start_time=self.start_time,
+                end_time=self.end_time,
+                subject=self.subject,
+                box=self.box,
+                protocal_name=self.protocal_name,
+                data=self.outdf,
+                original_data_location=self.original_data_location,
+            )
 
-            file_name = self.start_time + "_" + self.subject + "_" + self.box + "_" + self.protocal_name + ".json"
+            file_name = (
+                self.start_time
+                + "_"
+                + self.subject
+                + "_"
+                + self.box
+                + "_"
+                + self.protocal_name
+                + ".json"
+            )
             file_path = os.path.join(dir_path, file_name)
             with open(file_path, "w") as f:
                 f.write(trial.json())
@@ -92,6 +126,3 @@ class Loader:
             data = f.read()
         trial = Trial.fromJson(data)
         return trial
-
-    
-    

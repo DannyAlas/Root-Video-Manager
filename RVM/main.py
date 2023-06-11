@@ -1,29 +1,38 @@
 import os
-from tkinter import E
 from typing import Literal
 from PyQt6 import QtCore, QtGui, QtWidgets
 from threading import Thread
 from collections import deque
 import time
 import sys
-import cv2
+from RVM.widgets import BoxManagerDockWidget, AnimalManagerDockWidget
 from RVM.camera import Camera, CameraWindow
 from capture_devices import devices
 from RVM.bases import ProjectSettings, Box, Trial
+import qdarktheme
+
 
 class MainWinodw(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWinodw, self).__init__()
         self.setWindowTitle("Root Video Manager")
-        self.setGeometry(0, 0, 1280, 720)
         self.qtsettings = QtCore.QSettings("RVM", "RVM")
         self.projectSettings = ProjectSettings()
         # get the directory of the this file
-        self.icons_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons", "dark")
-        self.window().setWindowIcon(QtGui.QIcon(os.path.join(self.icons_dir, "logo.png")))
+        self.icons_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "icons", "dark"
+        )
+        self.window().setWindowIcon(
+            QtGui.QIcon(
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "icons", "logo.png"
+                )
+            )
+        )
+        self.dockWidgets = []
         self.initSettings()
         self.initUI()
-    
+
     def initSettings(self):
         latest_project_location = self.qtsettings.value("latest_project_location")
         # try to load the latest project
@@ -32,46 +41,91 @@ class MainWinodw(QtWidgets.QMainWindow):
                 with open(os.path.join(latest_project_location, "settings.json")) as f:
                     self.projectSettings = ProjectSettings.fromJson(f.read())
             except:
-                self.statusBar().showMessage("Failed to load the latest project settings")
+                self.statusBar().showMessage(
+                    "Failed to load the latest project settings"
+                )
         # set position and size of the window from the settings
         try:
             self.loadProject(self.projectSettings)
-            self.statusBar().showMessage(f"Loaded the latest project settings for {self.projectSettings.project_name}")
+            self.statusBar().showMessage(
+                f"Loaded the latest project settings for {self.projectSettings.project_name}"
+            )
         except:
             self.statusBar().showMessage("Failed to load the project settings")
+
+        # TODO: spawn a thread to check for new devices instead of doing it here
+        self.initDevices()
+
+    def initDevices(self):
+        self.videoDevices = self.getVideoDevices()
+        self.projectSettings.video_devices = self.videoDevices
 
     def initUI(self):
         # create toolbar
         self.toolbar = QtWidgets.QToolBar()
         self.toolbar.setMovable(False)
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
-        
-        self.newProjectButton = QtWidgets.QPushButton()
+
+        self.newProjectButton = QtWidgets.QToolButton()
         self.newProjectButton.clicked.connect(self.newProjectWindow)
         self.newProjectButton.setToolTip("Create a new project")
-        self.newProjectButton.setIcon(QtGui.QIcon(os.path.join(self.icons_dir, "new-document.png")))
+        self.newProjectButton.setIcon(
+            QtGui.QIcon(os.path.join(self.icons_dir, "new-document.png"))
+        )
+        self.newProjectButton.setText("New Project")
+        self.newProjectButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
         self.toolbar.addWidget(self.newProjectButton)
 
         # add a open project button
-        self.openProjectButton = QtWidgets.QPushButton()
+        self.openProjectButton = QtWidgets.QToolButton()
         self.openProjectButton.clicked.connect(self.openProjectExistingProject)
         self.openProjectButton.setToolTip("Open a project")
-        self.openProjectButton.setIcon(QtGui.QIcon(os.path.join(self.icons_dir, "open-document.png")))
+        self.openProjectButton.setIcon(
+            QtGui.QIcon(os.path.join(self.icons_dir, "open-document.png"))
+        )
+        self.openProjectButton.setText("Open Project")
+        self.openProjectButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
         self.toolbar.addWidget(self.openProjectButton)
-        
+
+        # save project button
+        self.saveProjectButton = QtWidgets.QToolButton()
+        self.saveProjectButton.clicked.connect(self.saveSettings)
+        self.saveProjectButton.setToolTip("Save the project")
+        self.saveProjectButton.setIcon(
+            QtGui.QIcon(os.path.join(self.icons_dir, "diskette.png"))
+        )
+        self.saveProjectButton.setText("Save Project")
+        self.saveProjectButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.toolbar.addWidget(self.saveProjectButton)
+
         # add settings button
-        self.settingsButton = QtWidgets.QPushButton()
+        self.settingsButton = QtWidgets.QToolButton()
         self.settingsButton.clicked.connect(self.settingsWindow)
         self.settingsButton.setToolTip("Settings")
-        self.settingsButton.setIcon(QtGui.QIcon(os.path.join(self.icons_dir, "settings.png")))
+        self.settingsButton.setIcon(
+            QtGui.QIcon(os.path.join(self.icons_dir, "settings.png"))
+        )
         self.toolbar.addSeparator()
-        self.toolbar.addSeparator()
-        self.toolbar.addSeparator()
+        spacer = QtWidgets.QWidget()
+        spacer.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+        self.toolbar.addWidget(spacer)
         self.toolbar.addWidget(self.settingsButton)
 
         # menu bar
         self.menuBar = self.menuBar()
         self.fileMenu = self.menuBar.addMenu("File")
+        self.saveProjectAction = QtGui.QAction("Save Project", self)
+        self.saveProjectAction.triggered.connect(self.saveSettings)
+        self.fileMenu.addAction(self.saveProjectAction)
         self.newProjectAction = QtGui.QAction("New Project", self)
         self.newProjectAction.triggered.connect(self.newProjectWindow)
         self.fileMenu.addAction(self.newProjectAction)
@@ -83,23 +137,29 @@ class MainWinodw(QtWidgets.QMainWindow):
         self.fileMenu.addAction(self.settingsAction)
 
         # allow dock widgets to be moved
-        self.setDockOptions(QtWidgets.QMainWindow.DockOption.AllowTabbedDocks | QtWidgets.QMainWindow.DockOption.AllowNestedDocks)
+        self.setDockOptions(
+            QtWidgets.QMainWindow.DockOption.AllowTabbedDocks
+            | QtWidgets.QMainWindow.DockOption.AllowNestedDocks
+        )
 
-        # create a widget for the right part
-        self.boxSettingsWidget = BoxSettingsWidget()
-
-        # create a widget for the left part
-        self.boxListWidget = BoxListWidget(self.projectSettings.boxes, self.boxSettingsWidget)
-
-
-        # add the dock widgets
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.boxListWidget)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.boxSettingsWidget)
-        
-
+        # create a dock widget for managing boxes
+        self.boxManagerDockWidget = BoxManagerDockWidget(self.projectSettings, self)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.boxManagerDockWidget
+        )
+        self.dockWidgets.append(self.boxManagerDockWidget)
+        # create a dock widget for managing animals
+        self.animalManagerDockWidget = AnimalManagerDockWidget(
+            self.projectSettings, self
+        )
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget
+        )
+        self.dockWidgets.append(self.animalManagerDockWidget)
         # create a status bar
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
+        self.statusBar.showMessage("Ready")
 
         # # create a combobox for selecting the video device
         # self.videoDeviceComboBox = QtWidgets.QComboBox()
@@ -117,7 +177,16 @@ class MainWinodw(QtWidgets.QMainWindow):
         # self.toolbar.addWidget(self.videoDeviceComboBox)
         # self.toolbar.addWidget(self.startVideoStreamButton)
 
-    def messageBox(self, title, text, severity: Literal[QtWidgets.QMessageBox.Icon.Information, QtWidgets.QMessageBox.Icon.Warning, QtWidgets.QMessageBox.Icon.Critical] = QtWidgets.QMessageBox.Icon.Information):
+    def messageBox(
+        self,
+        title,
+        text,
+        severity: Literal[
+            QtWidgets.QMessageBox.Icon.Information,
+            QtWidgets.QMessageBox.Icon.Warning,
+            QtWidgets.QMessageBox.Icon.Critical,
+        ] = QtWidgets.QMessageBox.Icon.Information,
+    ):
         msg = QtWidgets.QMessageBox()
         msg.setIcon(severity)
         msg.setText(text)
@@ -129,12 +198,16 @@ class MainWinodw(QtWidgets.QMainWindow):
     def newProjectWindow(self):
         # create a new project window
         self.newProjectWindow = NewProjectWindow(parent=self)
-        self.newProjectWindow.projectSettingsSignal.projectSettingsSignal.connect(self.newProject)
+        self.newProjectWindow.projectSettingsSignal.projectSettingsSignal.connect(
+            self.newProject
+        )
         self.newProjectWindow.show()
 
     def openProjectExistingProject(self):
         # open a existing project
-        dir = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Folder", os.path.expanduser("~"))
+        dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select Project Folder", os.path.expanduser("~")
+        )
         if dir == "":
             return
         # try to load the project
@@ -144,13 +217,21 @@ class MainWinodw(QtWidgets.QMainWindow):
             self.loadProject(self.projectSettings)
         except Exception as e:
             # pop up a error message
-            self.messageBox("Error", f"Failed to load project: {e}", QtWidgets.QMessageBox.Icon.Critical)
+            self.messageBox(
+                "Error",
+                f"Failed to load project: {e}",
+                QtWidgets.QMessageBox.Icon.Critical,
+            )
+        for dockWidget in self.dockWidgets:
+            dockWidget.reload(self.projectSettings)
 
     def settingsWindow(self):
-        self.newSettingsWindow = ProjectSettingsWindow(self.projectSettings, parent=self)
+        self.newSettingsWindow = ProjectSettingsWindow(
+            self.projectSettings, parent=self
+        )
         self.newSettingsWindow.signals.projectSettingsSignal.connect(self.reloadProject)
         self.newSettingsWindow.show()
-        
+
     def newProject(self, projectSettings: ProjectSettings):
         # create a new project
         self.projectSettings = projectSettings
@@ -158,20 +239,28 @@ class MainWinodw(QtWidgets.QMainWindow):
         # create a settings json file for the project
         self.projectSettings.save(self.projectSettings.project_location)
         # use QSettings to save the latest project location
-        self.qtsettings.setValue("latest_project_location", self.projectSettings.project_location)
+        self.qtsettings.setValue(
+            "latest_project_location", self.projectSettings.project_location
+        )
 
     def loadProject(self, projectSettings: ProjectSettings):
-        self.window().setWindowTitle("Root Video Manager - " + self.projectSettings.project_name)
+        self.window().setWindowTitle(
+            "Root Video Manager - " + self.projectSettings.project_name
+        )
         # set position and size of the window from the settings
-        self.resize(self.projectSettings.window_size[0], self.projectSettings.window_size[1])
-        self.move(self.projectSettings.window_position[0], self.projectSettings.window_position[1])
+        self.resize(
+            self.projectSettings.window_size[0], self.projectSettings.window_size[1]
+        )
+        self.move(
+            self.projectSettings.window_position[0],
+            self.projectSettings.window_position[1],
+        )
 
     def reloadProject(self):
         # save the project
         self.saveSettings()
         # load the project
         self.loadProject(self.projectSettings)
-        
 
     def checkVideoDeviceOption(self):
         if self.videoDeviceComboBox.currentIndex() == 0:
@@ -186,197 +275,82 @@ class MainWinodw(QtWidgets.QMainWindow):
         videoDeviceIndex = self.videoDeviceComboBox.currentIndex() - 1
         # create a new camera window
         cameraWindow = CameraWindow(parent=self)
-        cameraWindow.createCamera(camNum=videoDeviceIndex, camName=self.videoDeviceComboBox.currentText(), fps=30, prevFPS=30, recFPS=30)
-        cameraWindow.show()
+        cameraWindow.createCamera(
+            camNum=videoDeviceIndex,
+            camName=self.videoDeviceComboBox.currentText(),
+            fps=30,
+            prevFPS=30,
+            recFPS=30,
+        )
+        # place the camera window inside a dock widget
+        cameraDockWidget = QtWidgets.QDockWidget(
+            self.videoDeviceComboBox.currentText(), self
+        )
+        cameraDockWidget.setWidget(cameraWindow)
+        cameraDockWidget.setAllowedAreas(
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea
+            | QtCore.Qt.DockWidgetArea.RightDockWidgetArea
+            | QtCore.Qt.DockWidgetArea.TopDockWidgetArea
+            | QtCore.Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+        # set the dock widget to be floating
+        cameraDockWidget.setFloating(True)
+        # add the dock widget to the main window
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, cameraDockWidget
+        )
 
     def getVideoDevices(self) -> dict:
-        d_list = devices.run_with_param(device_type="video", alt_name=True,list_all=True, result_=True)
+        d_list = devices.run_with_param(
+            device_type="video", alt_name=True, list_all=True, result_=True
+        )
         # the list is ordered by device-name and alternative-name
         # grab the device name and alternative name from the list and use alt as key and device as value
         d_dict = {}
-        for i in range(0,len(d_list),2):
+        for i in range(0, len(d_list), 2):
             # use the alternative name as the key
-            alt_name_str = d_list[i+1]
+            alt_name_str = d_list[i + 1]
             alt_name = alt_name_str.split(":")[1].strip()
             # use the device name as the value
             device_name_str = d_list[i]
             device_name = device_name_str.split(":")[1].strip()
             d_dict[alt_name] = device_name
+
+        # if there are any duplicate device names, add a number to the end of the name
+        for key, value in d_dict.items():
+            if list(d_dict.values()).count(value) > 1:
+                # get the index of the current key
+                index = list(d_dict.keys()).index(key)
+                # add a number to the end of the key
+                d_dict[key] = value + f" ({index+1})"
+
         return d_dict
-        
+
     def saveSettings(self):
         # save position and size of the window
         self.projectSettings.window_position = (self.pos().x(), self.pos().y())
         self.projectSettings.window_size = (self.size().width(), self.size().height())
-        
 
         # save the settings to a json file
         self.projectSettings.save()
+        self.qtsettings.setValue(
+            "latest_project_location", self.projectSettings.project_location
+        )
 
     def closeEvent(self, event):
         # stop all camera streams
-        self.saveSettings()        
+        self.saveSettings()
         event.accept()
 
-# signal for when the list item is clicked 
-class BoxListItemSignals(QtCore.QObject):
-    clicked = QtCore.pyqtSignal(Box)
-    checked = QtCore.pyqtSignal(bool)
-class BoxListItem(QtWidgets.QListWidgetItem):
-
-    def __init__(self, box: Box, parent=None):
-        super(BoxListItem, self).__init__(parent)
-        self.box = box
-        self.signals = BoxListItemSignals()
-        self.parent = parent
-        
-        self.setText(box.box)
-        self.setFlags(QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
-        self.setCheckState(QtCore.Qt.CheckState.Unchecked)
-        self.setSelected(False)
-
-    def setSelected(self, aselect: bool) -> None:
-        print("set selected")
-        self.signals.clicked.emit(self.box)
-        super(BoxListItem, self).setSelected(aselect)
-
-    def event(self, event):
-        print("event")
-        if event.type() == QtCore.QEvent.Type.MouseButtonPress:
-            self.signals.clicked.emit(self.box)
-        return super(BoxListItem, self).event(event)
-        
-class BoxListWidget(QtWidgets.QDockWidget):
-
-    def __init__(self, projectSettingsBoxes, settingsWindow, parent=None):
-        super(BoxListWidget, self).__init__(parent=parent)
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.boxes = projectSettingsBoxes
-        self.settingsWindow = settingsWindow
-        self.initUI()
-
-    def initUI(self):
-        # add name to the dock widget
-        self.setWindowTitle("Box List")
-
-        # create a new box button
-        self.newBoxButton = QtWidgets.QPushButton("New Box")
-        self.newBoxButton.clicked.connect(self.newBox)
-
-        # create the box list
-        self.listWidget = QtWidgets.QListWidget()
-        self.listWidget.itemClicked.connect(lambda item: self.settingsWindow.showBoxSettings(item.box))
-
-        # set the layout and add the widgets
-        self.layout = QtWidgets.QVBoxLayout()
-        self.layout.addWidget(self.newBoxButton)
-        self.layout.addWidget(self.listWidget)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
-
-        # create a new widget for the layout
-        self.newWidget = QtWidgets.QWidget()
-        self.newWidget.setLayout(self.layout)
-
-        # add the boxes to the list
-        for box in self.boxes:
-            # add the item to the list
-            self.addBox(box)
-
-        # show the dock widget
-        self.setWidget(self.newWidget)
-        self.show()
-
-    # override closeEvent to hide the dock widget instead of closing it
-    def closeEvent(self, event):
-        self.hide()
-        event.ignore()
-
-    def showEvent(self, event):
-        self.update()
-        event.accept()
-
-    def newBox(self):
-        # create a new box
-        newBox = Box()
-        # append the box to the list
-        self.boxes.append(newBox)
-        # add the box to the list
-        self.addBox(newBox)
-    
-    def addBox(self, box: Box):
-        if box is None:
-            return
-        # create a new list item
-        listItem = BoxListItem(box=box, parent=self.listWidget)
-        # bind the setSelected event to print
-        listItem.signals.clicked.connect(lambda: print("selected"))
-        
-        # make the list item checkable
-        listItem.setFlags(listItem.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
-        # set the list item to unchecked
-        listItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
-        # set the list item text to the box name
-        listItem.setText(f"Box {box.box}")
-        # add the list item to the list
-        self.listWidget.addItem(listItem)
-
-class BoxSettingsWidget(QtWidgets.QDockWidget):
-    """A box settings dock widget"""
-
-    def __init__(self, parent=None):
-        super(BoxSettingsWidget, self).__init__(parent=parent)
-        # set all dock widget features
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetClosable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.initUI()
-
-    def initUI(self):
-        self.boxSettingsLayout = QtWidgets.QVBoxLayout()
-        # add name to the dock widget
-        self.setWindowTitle(f"Box Settings")
-        
-        # create a new widget for the layout
-        self.newWidget = QtWidgets.QWidget()
-        self.newWidget.setLayout(self.boxSettingsLayout)
-
-
-    def showBoxSettings(self, box: Box):
-        # update the title of the dock widget
-        self.setWindowTitle(f"Box {box.box} Settings")
-        # Lineedit for the box name
-        self.boxNameLineEdit = QtWidgets.QLineEdit(box.box)
-        # Lineedit for the boxes subject
-        self.boxSubjectLineEdit = QtWidgets.QLineEdit(box.subject)
-        # combobox for the boxes cameras
-        self.boxCamerasComboBox = QtWidgets.QComboBox()
-
-        # add the cameras to the combobox
-        for camera in range(1, 5):
-            self.boxCamerasComboBox.addItem(f"Camera {camera}")
-
-        # create a new layout for the box settings
-        self.boxSettingsLayout = QtWidgets.QVBoxLayout()
-        self.boxSettingsLayout.addWidget(self.boxNameLineEdit)
-        self.boxSettingsLayout.addWidget(self.boxSubjectLineEdit)
-        self.boxSettingsLayout.addWidget(self.boxCamerasComboBox)
-
-        # create a new widget for the layout
-        self.boxSettingsWidget = QtWidgets.QWidget()
-        self.boxSettingsWidget.setLayout(self.boxSettingsLayout)
-
-        # set the widget for the dock widget
-        self.setWidget(self.boxSettingsWidget)
-
-    def saveCurrentBoxSettings(self):
-        # get the current box settings
-        print(self.boxNameLineEdit.text())
 
 # signal for passing the project settings to the main window
 class NewProjectWindowSignals(QtCore.QObject):
     projectSettingsSignal = QtCore.pyqtSignal(ProjectSettings)
 
+
 class NewProjectWindow(QtWidgets.QDialog):
     """A window for creating a new project"""
+
     def __init__(self, parent=None):
         super(NewProjectWindow, self).__init__(parent=parent)
         self.setWindowTitle("New Project")
@@ -397,7 +371,9 @@ class NewProjectWindow(QtWidgets.QDialog):
         self.projectDirectoryLabel.setReadOnly(True)
 
         # button for selecting the project directory
-        self.selectProjectDirectoryButton = QtWidgets.QPushButton("Select Project Directory")
+        self.selectProjectDirectoryButton = QtWidgets.QPushButton(
+            "Select Project Directory"
+        )
         self.selectProjectDirectoryButton.clicked.connect(self.selectProjectDirectory)
 
         # button for creating the project
@@ -415,7 +391,9 @@ class NewProjectWindow(QtWidgets.QDialog):
         self.setLayout(self.layout)
 
     def selectProjectDirectory(self):
-        self.projectDirectoryLabel.setText(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))
+        self.projectDirectoryLabel.setText(
+            QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory")
+        )
 
     def createProject(self):
         # get the project name
@@ -423,16 +401,21 @@ class NewProjectWindow(QtWidgets.QDialog):
         # get the project directory
         projectDirectory = self.projectDirectoryLabel.text()
         # create a new project
-        project = ProjectSettings(project_name = projectName, project_location = projectDirectory)
+        project = ProjectSettings(
+            project_name=projectName, project_location=projectDirectory
+        )
         # close the window
         self.projectSettingsSignal.projectSettingsSignal.emit(project)
         self.close()
 
+
 class ProjectSettingsWindowSignal(QtCore.QObject):
     projectSettingsSignal = QtCore.pyqtSignal(ProjectSettings)
 
+
 class ProjectSettingsWindow(QtWidgets.QDialog):
     """A window for editing the project settings"""
+
     def __init__(self, projectSettings: ProjectSettings, parent: QtWidgets.QMainWindow):
         super(ProjectSettingsWindow, self).__init__(parent=parent)
         self.setWindowTitle("Project Settings")
@@ -449,12 +432,16 @@ class ProjectSettingsWindow(QtWidgets.QDialog):
         self.projectNameLabel.setClearButtonEnabled(True)
 
         # label for the project directory
-        self.projectDirectoryLabel = QtWidgets.QLineEdit(self.projectSettings.project_location)
+        self.projectDirectoryLabel = QtWidgets.QLineEdit(
+            self.projectSettings.project_location
+        )
         self.projectDirectoryLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.projectDirectoryLabel.setReadOnly(True)
 
         # button for selecting the project directory
-        self.selectProjectDirectoryButton = QtWidgets.QPushButton("Select Project Directory")
+        self.selectProjectDirectoryButton = QtWidgets.QPushButton(
+            "Select Project Directory"
+        )
         self.selectProjectDirectoryButton.clicked.connect(self.selectProjectDirectory)
 
         # button for creating the project
@@ -472,7 +459,9 @@ class ProjectSettingsWindow(QtWidgets.QDialog):
         self.setLayout(self.layout)
 
     def selectProjectDirectory(self):
-        self.projectDirectoryLabel.setText(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))
+        self.projectDirectoryLabel.setText(
+            QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory")
+        )
 
     def saveProjectSettings(self):
         # get the project name
@@ -487,9 +476,22 @@ class ProjectSettingsWindow(QtWidgets.QDialog):
         # close the window
         self.close()
 
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     main = MainWinodw()
     main.show()
-    QtWidgets.QApplication.setStyle(QtWidgets.QStyleFactory.create("Fusion"))
+    customStyleSheet = """
+            QStatusBar {
+                font-size: 14x;
+                background-color: #333333;
+                color: #ffffff;
+            }
+            QToolTip {
+                color: #333333;
+            }
+
+            """
+    qdarktheme.setup_theme(additional_qss=customStyleSheet)
+
     sys.exit(app.exec())
