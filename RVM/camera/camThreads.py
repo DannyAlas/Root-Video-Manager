@@ -21,7 +21,7 @@ class vrSignals(QObject):
 
 
 class vidReader(QObject):
-    """vidReader puts frame collection into the background, so frames from different cameras can be collected in parallel. this collects a single frame from a camera. status is a camStatus object, vc is a vc object (defined in camObj)"""
+    """Puts frame collection into the background, so frames from different cameras can be collected in parallel. this collects a single frame from a camera. status is a camStatus object, vc is a VideoCapture object"""
 
     def __init__(self, vc: QMutex):
         super(vidReader, self).__init__()
@@ -58,6 +58,11 @@ class vidReader(QObject):
         if not self.cont:
             self.close()
             return
+        # print the delta time
+        delta = (self.dnow - self.lastTime)
+        if delta.microseconds / 1000 > self.mspf:
+            print(f"{self.mspf} != {delta.microseconds / 1000} ms")
+
         self.sendNewFrame(frame)  # send back to window
         self.checkDrop(frame)  # check for dropped frames
 
@@ -89,6 +94,8 @@ class vidReader(QObject):
 
     def sendFrame(self, frame: np.ndarray, pad: bool):
         """send a frame to the GUI"""
+        if frame is None:
+            return
         self.signals.frame.emit(
             frame, pad
         )  # send the frame back to be displayed and recorded
@@ -166,7 +173,7 @@ class previewer(QObject):
         self.timer = QTimer()
         self.timer.timeout.connect(self.loop)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self.timer.start(self.mspf)
+        self.timer.start(int(self.mspf/2))
         self.timerRunning = True
 
     def loop(self):

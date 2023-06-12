@@ -33,7 +33,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         self.createAnimalButton.setText("Add Animal")
         self.createAnimalButton.setToolTip("Add a new animal to the project")
         self.createAnimalButton.setIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "add.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "add.png"))
         )
         self.createAnimalButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
@@ -47,7 +47,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             "Delete the selected animals from the project"
         )
         self.deleteAnimalsButton.setIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "delete.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "delete.png"))
         )
         self.deleteAnimalsButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
@@ -192,7 +192,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         # set the window title
         msgBox.setWindowTitle("Delete Animal?")
         msgBox.setWindowIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "..", "logo.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "..", "logo.png"))
         )
         msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
         ret = msgBox.exec()
@@ -237,7 +237,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         # set the window title
         msgBox.setWindowTitle("Delete Animals?")
         msgBox.setWindowIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "..", "logo.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "..", "logo.png"))
         )
         msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
         ret = msgBox.exec()

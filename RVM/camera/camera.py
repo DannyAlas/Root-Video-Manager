@@ -54,6 +54,7 @@ class VideoCapture(QMutex):
         self.signals.status.emit(str(msg), log)
 
     def updateFPS(self, fps):
+        print(f"updating fps to {fps}")
         self.fps = fps
         self.mspf = int(round(1000.0 / self.fps))
 
@@ -134,7 +135,7 @@ class CameraSignals(QObject):
 class Camera(QObject):
     """A VideoCapture object that reads frames from a webcam, and has methods for recording and previewing.
 
-    Frames are read my a separate thread, and stored in a queue. The queue is read by the preview thread and the recording thread AND ONLY EMTIED BY THE RECORDING THREAD.
+    Frames are read by a separate thread, and stored in a queue. The queue is read by the preview thread and the recording thread AND ONLY CLEARED BY THE RECORDING THREAD.
 
     Note
     ----
@@ -561,7 +562,7 @@ class CameraWindow(QMainWindow):
         if self.cam is None:
             CameraWindow.i += 1
             self.cam = Camera(
-                CameraWindow.i, f"Camera {CameraWindow.i}", 30, 30, 30, self
+                CameraWindow.i, f"Camera {CameraWindow.i}", 60, 60, 60, self
             )
 
         self.initUI()

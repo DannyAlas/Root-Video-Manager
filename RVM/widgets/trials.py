@@ -31,7 +31,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.createTrialButton.setText("Add Trial")
         self.createTrialButton.setToolTip("Add a new box to the project")
         self.createTrialButton.setIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "add.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "add.png"))
         )
         self.createTrialButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
@@ -42,7 +42,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.deleteTrialButton.setText("Delete Trial")
         self.deleteTrialButton.setToolTip("Delete the selected box from the project")
         self.deleteTrialButton.setIcon(
-            QtGui.QIcon(os.path.join(self.parent.icons_dir, "delete.png"))
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "delete.png"))
         )
         self.deleteTrialButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
