@@ -23,6 +23,49 @@ class ProjectSettings(ProjectSettingsBase):
         with open(os.path.join(dir_path, file_name), "r") as file:
             self.__init__(**json.load(file))
 
+    def getAnimalFromId(self, uid):
+        for animal in self.animals:
+            if animal.uid == uid:
+                return animal
+        return None
+
+    def getBoxFromId(self, uid):
+        for box in self.boxes:
+            if box.uid == uid:
+                return box
+        return None
+
+    def getTrialFromId(self, uid):
+        for trial in self.trials:
+            if trial.uid == uid:
+                return trial
+        return None
+
+    def getBoxFromName(self, name):
+        for box in self.boxes:
+            if box.name == name:
+                return box
+        return None
+
+    def updateTrial(self, trial):
+        for i, t in enumerate(self.trials):
+            if t.uid == trial.uid:
+                self.trials[i] = trial
+                return True
+        return False
+
+    def getProtocolFromId(self, uid):
+        for protocol in self.protocols:
+            if protocol.uid == uid:
+                return protocol
+        return None
+
+    def getProlcolFromName(self, name):
+        for protocol in self.protocols:
+            if protocol.name == name:
+                return protocol
+        return None
+
 class Protocol(ProtocalBase):
     """The protocol in the project"""
 
@@ -45,3 +88,17 @@ class Box(BoxBase):
         # set our attributes
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+class Trial(TrialBase):
+    """A trial in the project"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def load(self, **kwargs):
+        # set our attributes
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+    @staticmethod
+    def avalible_states():
+        return [x for x in TrialBase.__fields__['state'].type_.__args__]

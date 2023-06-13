@@ -60,8 +60,7 @@ class vidReader(QObject):
             return
         # print the delta time
         delta = (self.dnow - self.lastTime)
-        if delta.microseconds / 1000 > self.mspf:
-            print(f"{self.mspf} != {delta.microseconds / 1000} ms")
+        print(f"fps: {1 / delta.total_seconds()}")
 
         self.sendNewFrame(frame)  # send back to window
         self.checkDrop(frame)  # check for dropped frames

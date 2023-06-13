@@ -12,12 +12,20 @@ if __name__ == "__main__":
     * {
         font-size: 12px;
     }
+    QToolTip {
+        font-size: 12px;
+        color: #000000;
+    }
     QTreeWidget {
         font-size: 15px;
         font-weight: 400;
     }
     QTreeWidget::item {
         height: 30px;
+    }
+    QListWidget {
+        font-size: 15px;
+        font-weight: 400;
     }
     """
     setup_theme('auto', additional_qss=qss)

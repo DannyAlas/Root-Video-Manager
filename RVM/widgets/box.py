@@ -6,12 +6,17 @@ from RVM.bases import ProjectSettings, Protocol, Box, BoxBase
 import os
 from RVM.camera import Camera, CameraWindow
 
+class BoxManagerDockWidgetSignals(QtCore.QObject):
+    boxCreated = QtCore.pyqtSignal(Box)
+    boxDeleted = QtCore.pyqtSignal(Box)
+    boxUpdated = QtCore.pyqtSignal(Box)
 
 class BoxManagerDockWidget(QtWidgets.QDockWidget):
     def __init__(self, projectSettings: ProjectSettings, parent):
         super().__init__(parent)
         self.projectSettings = projectSettings
         self.parent = parent
+        self.signals = BoxManagerDockWidgetSignals()
         self.initUi()
 
     def initUi(self):
@@ -55,8 +60,17 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.buttonLayout.addWidget(self.deleteBoxButton)
         self.buttonLayout.addStretch(1)
 
+        # a search bar for the tree widget
+        self.searchBar = QtWidgets.QLineEdit()
+        self.searchBar.setPlaceholderText("Search")
+        self.searchBar.textChanged.connect(self.searchTreeWidget)
+        self.buttonLayout.addWidget(self.searchBar)
+
         # create box list widget
         self.treeWidget = QtWidgets.QTreeWidget()
+        self.treeWidget.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
+        )
         self.treeWidget.setHeaderLabels(["Box ID", "Name", "Trials", "Notes"])
         self.treeWidget.setColumnCount(4)
         self.treeWidget.itemChanged.connect(self.updateBoxFromItem)
@@ -64,6 +78,8 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             QtCore.Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.treeWidget.customContextMenuRequested.connect(self.showContextMenu)
+        self.treeWidget.itemDoubleClicked.connect(self.editBox)
+        self.treeWidget.setSortingEnabled(True)
 
         self.layout.addWidget(self.buttonWidget)
         self.layout.addWidget(self.treeWidget)
@@ -88,11 +104,22 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.contextMenu.addAction(self.deleteAction)
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
 
+    def searchTreeWidget(self, text: str):
+        for i in range(self.treeWidget.topLevelItemCount()):
+            item = self.treeWidget.topLevelItem(i)
+            for j in range(item.columnCount()):
+                if text.lower() in item.text(j).lower():
+                    item.setHidden(False)
+                    break
+                else:
+                    item.setHidden(True)
+
     def createNewBox(self):
         """
         Create a new box and add it to the project settings
         """
-        newBoxDialog = BoxDialog(self.projectSettings, self, self.parent)
+        print("Creating new box")
+        newBoxDialog = BoxDialog(self.projectSettings, self.parent, self)
         newBoxDialog.signals.okClicked.connect(self.addBox)
         newBoxDialog.show()
 
@@ -107,6 +134,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         """
         self.projectSettings.boxes.append(box)
         self.updateBoxList()
+        self.signals.boxCreated.emit(box)
 
     def deleteBoxes(self):
         pass
@@ -123,15 +151,8 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             The column to edit
         """
         self.parent.updateStatus("Editing Box {}".format(item.text(0)))
-        box = [box for box in self.projectSettings.boxes if box.uid == item.text(0)]
-        if box is None:
-            self.parent.updateStatus("Box {} not found".format(item.text(0)))
-            return
-        if len(box) == 0:
-            self.parent.updateStatus("Box {} not found".format(item.text(0)))
-            return
-        box = box[0]
-        editBoxDialog = BoxDialog(self.projectSettings, self, self.parent)
+        box = self.getBoxFromItem(item)
+        editBoxDialog = BoxDialog(self.projectSettings, self.parent, self)
         editBoxDialog.loadBox(box)
         editBoxDialog.signals.okClicked.connect(self.updateBox)
         editBoxDialog.show()
@@ -162,7 +183,6 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         """
         if type(item) == QtWidgets.QTreeWidgetItem:
             box = self.getBoxFromItem(item)
-            print("Box from item", box)
         elif type(item) == Box or type(item) == BoxBase:
             box = item
         else:
@@ -170,7 +190,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             return
         
         self.parent.updateStatus("Deleting Box {}".format(box.uid))
-        confim = self.parent.confirmBox("Delete Box", f"Are you sure you want to delete box {box.name}?\n\nID: {box.uid}")
+        confim = self.parent.confirmBox("Delete Box", f"Are you sure you want to delete Box: {box.name}?\n\nID: {box.uid}")
         if not confim:
             return
         # remove the box from the project settings
@@ -271,7 +291,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         elif column == 3:
             box.notes = item.text(3)
 
-    def reload(self):
+    def refresh(self):
         """
         Reload the box list
         """
@@ -320,7 +340,7 @@ class BoxDialogSignals(QtCore.QObject):
 
 
 class BoxDialog(QtWidgets.QDialog):
-    def __init__(self, projectSettings: ProjectSettings, parent=None, mainWin: QtWidgets.QMainWindow=None):
+    def __init__(self, projectSettings: ProjectSettings, mainWin: QtWidgets.QMainWindow=None, parent=None):
         super().__init__(parent)
         self.projectSettings = projectSettings
         self.signals = BoxDialogSignals()
@@ -390,15 +410,19 @@ class BoxDialog(QtWidgets.QDialog):
 
     def preview(self):
         videoDeviceIndex = self.cameraComboBox.currentIndex()
+        # dock widget for the camera
+        cameraDockWidget = QtWidgets.QDockWidget()
         cameraWindow = CameraWindow(parent=self)
+        cameraDockWidget.setWidget(cameraWindow)
+        self.mainWin.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, cameraDockWidget)
+        cameraDockWidget.show()
         cameraWindow.createCamera(
             camNum=videoDeviceIndex,
             camName=self.cameraComboBox.currentText(),
-            fps=60,
-            prevFPS=60,
-            recFPS=60,
+            fps=30,
+            prevFPS=30,
+            recFPS=30,
         )
-        cameraWindow.startPreview()
         cameraWindow.show()
 
     def loadBox(self, box: Box):

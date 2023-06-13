@@ -58,6 +58,12 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         self.buttonLayout.addWidget(self.deleteAnimalsButton)
         self.buttonLayout.addStretch(1)
 
+        # a search bar for the tree widget
+        self.searchBar = QtWidgets.QLineEdit()
+        self.searchBar.setPlaceholderText("Search")
+        self.searchBar.textChanged.connect(self.searchTreeWidget)
+        self.buttonLayout.addWidget(self.searchBar)
+
         self.treeWidget = QtWidgets.QTreeWidget()
         self.treeWidget.setSelectionMode(
             QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
@@ -69,6 +75,8 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             QtCore.Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.treeWidget.customContextMenuRequested.connect(self.showContextMenu)
+        self.treeWidget.itemDoubleClicked.connect(self.editAnimal)
+        self.treeWidget.setSortingEnabled(True)
 
         self.layout.addWidget(self.buttonWidget)
         self.layout.addWidget(self.treeWidget)
@@ -99,28 +107,38 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         # show the context menu
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
 
+    def searchTreeWidget(self, text: str):
+        for i in range(self.treeWidget.topLevelItemCount()):
+            item = self.treeWidget.topLevelItem(i)
+            for j in range(item.columnCount()):
+                if text.lower() in item.text(j).lower():
+                    item.setHidden(False)
+                    break
+                else:
+                    item.setHidden(True)
+
     def updateAnimalFromItem(self, item: QtWidgets.QTreeWidgetItem, column: int):
         # get the animal id from the item
-        animalId = item.text(0)
+        uid = item.text(0)
         # get the animal from the project settings
         animal = [
             animal
             for animal in self.projectSettings.animals
-            if animal.animalId == animalId
+            if animal.uid == uid
         ]
         if animal is None:
             self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(animalId)
+                "Could not find animal with id {}".format(uid)
             )
             return
         if len(animal) == 0:
             self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(animalId)
+                "Could not find animal with id {}".format(uid)
             )
             return
         if len(animal) > 1:
             self.parent.statusBar.showMessage(
-                "Multiple animals with id {}".format(animalId)
+                "Multiple animals with id {}".format(uid)
             )
 
         animal = animal[0]
@@ -141,7 +159,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         animal = [
             animal
             for animal in self.projectSettings.animals
-            if animal.animalId == item.text(0)
+            if animal.uid == item.text(0)
         ]
         if animal is None:
             self.parent.statusBar.showMessage(
@@ -167,7 +185,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
     def updateAnimal(self, animal: Animal):
         # update the animal in the project settings
         for i, a in enumerate(self.projectSettings.animals):
-            if a.animalId == animal.animalId:
+            if a.uid == animal.uid:
                 self.projectSettings.animals[i] = animal
                 break
         # update the animal in the tree widget
@@ -202,16 +220,16 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             )
             return
         # get the animal id from the item
-        animalId = item.text(0)
+        uid = item.text(0)
         # get the animal from the project settings
         animal = [
             animal
             for animal in self.projectSettings.animals
-            if animal.animalId == animalId
+            if animal.uid == uid
         ][0]
         if animal is None:
             self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(animalId)
+                "Could not find animal with id {}".format(uid)
             )
         # remove the animal from the project settings
         self.projectSettings.animals.remove(animal)
@@ -248,16 +266,16 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         # loop through the selected items
         for item in selectedItems:
             # get the animal id from the item
-            animalId = item.text(0)
+            uid = item.text(0)
             # get the animal from the project settings
             animal = [
                 animal
                 for animal in self.projectSettings.animals
-                if animal.animalId == animalId
+                if animal.uid == uid
             ][0]
             if animal is None:
                 self.parent.statusBar.showMessage(
-                    "Could not find animal with id {}".format(animalId)
+                    "Could not find animal with id {}".format(uid)
                 )
                 continue
             # remove the animal from the project settings
@@ -273,7 +291,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             # create a new tree widget item
             treeWidgetItem = QtWidgets.QTreeWidgetItem()
             # set the text of the tree widget item
-            treeWidgetItem.setText(0, animal.animalId)
+            treeWidgetItem.setText(0, animal.uid)
             treeWidgetItem.setText(1, animal.genotype)
             treeWidgetItem.setCheckState(
                 2,
@@ -290,8 +308,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             # add the tree widget item to the tree widget
             self.treeWidget.addTopLevelItem(treeWidgetItem)
 
-    def reload(self, projectSettings: ProjectSettings):
-        self.projectSettings = projectSettings
+    def refresh(self):
         self.addAnimals()
 
 
@@ -304,6 +321,7 @@ class AnimalDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.projectSettings = projectSettings
         self.signals = AnimalDialogSignals()
+        self.currentAnimal = None
         self.parent = parent
         self.initUi()
 
@@ -319,8 +337,12 @@ class AnimalDialog(QtWidgets.QDialog):
         self.layout.addLayout(self.formLayout)
 
         # create the animal id line edit
-        self.animalIdLineEdit = QtWidgets.QLineEdit()
-        self.formLayout.addRow("Animal ID", self.animalIdLineEdit)
+        self.uidLineEdit = QtWidgets.QLineEdit()
+        self.formLayout.addRow("Animal ID", self.uidLineEdit)
+        # add a tool tip to the right of the line edit
+        self.uidLineEdit.setToolTip(
+            "The animal ID is a unique identifier for the animal. It is case sensitive."
+        )
 
         # create the genotype line edit
         self.genotypeLineEdit = QtWidgets.QLineEdit()
@@ -346,10 +368,12 @@ class AnimalDialog(QtWidgets.QDialog):
         self.layout.addWidget(self.buttonBox)
 
     def loadAnimal(self, animal: Animal):
+        self.currentAnimal = animal
         # set the animal id to not be editable
-        self.animalIdLineEdit.setReadOnly(True)
+        self.uidLineEdit.setReadOnly(True)
+        self.uidLineEdit.setEnabled(False)
         # set the animal id
-        self.animalIdLineEdit.setText(animal.animalId)
+        self.uidLineEdit.setText(animal.uid)
         # set the genotype
         self.genotypeLineEdit.setText(animal.genotype)
         # set the alive check box
@@ -357,11 +381,20 @@ class AnimalDialog(QtWidgets.QDialog):
         # set the notes
         self.notesTextEdit.setText(animal.notes)
 
+    def deleteAnimal(self):
+        if self.currentAnimal is None:
+            self.parent.updateStatusBar("Error: No animal selected")
+        self.parent.deleteAnimal(self.currentAnimal)
+
     def checkInputs(self):
-        # check if the animal id line edit is empty
-        if self.animalIdLineEdit.text() == "":
-            return False, "Animal ID cannot be empty"
-        return True, ""
+        if self.currentAnimal is None:
+            # check the current animal id
+            uid = self.uidLineEdit.text()
+            if uid == "":
+                return False, "Animal ID cannot be empty"
+            if uid in [animal.uid for animal in self.projectSettings.animals]:
+                return False, "Animal ID already exists"
+        return True, "Updated animal"
 
     def accept(self):
         # check the inputs
@@ -372,7 +405,7 @@ class AnimalDialog(QtWidgets.QDialog):
             return
         # create a new animal
         animal = Animal(
-            animalId=self.animalIdLineEdit.text(),
+            uid=self.uidLineEdit.text(),
             genotype=self.genotypeLineEdit.text(),
             alive=self.aliveCheckBox.isChecked(),
             notes=self.notesTextEdit.toPlainText(),

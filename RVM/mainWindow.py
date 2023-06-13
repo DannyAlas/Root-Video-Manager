@@ -3,7 +3,7 @@ from typing import Literal
 from PyQt6 import QtCore, QtGui, QtWidgets
 from bases import ProjectSettings
 from widgets import (
-    BoxManagerDockWidget,
+    BoxManagerDockWidget, AnimalManagerDockWidget, TrialManagerDockWidget, ProtocolManagerDockWidget
 )
 from capture_devices import devices
 
@@ -200,9 +200,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.createDockWidgets()
 
     def createDockWidgets(self):
-        boxManagerDockWidget = BoxManagerDockWidget(self.projectSettings, self)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, boxManagerDockWidget)
-        self.viewMenu.addAction(boxManagerDockWidget.toggleViewAction())
+        self.boxManagerDockWidget = BoxManagerDockWidget(self.projectSettings, self)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.boxManagerDockWidget)
+        self.viewMenu.addAction(self.boxManagerDockWidget.toggleViewAction())
+        self.animalManagerDockWidget = AnimalManagerDockWidget(self.projectSettings, self)
+        self.viewMenu.addAction(self.animalManagerDockWidget.toggleViewAction())
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget)
+        self.trialManagerDockWidget = TrialManagerDockWidget(self.projectSettings, self)
+        self.viewMenu.addAction(self.trialManagerDockWidget.toggleViewAction())
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget)
+        self.protocolManagerDockWidget = ProtocolManagerDockWidget(self.projectSettings, self)
+        self.viewMenu.addAction(self.protocolManagerDockWidget.toggleViewAction())
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget)
+
 
     def protocolChanged(self, text):
         # refresh the open dock widgets to reflect the new protocol
@@ -269,8 +279,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Failed to load project: {e}",
                 severity="Critical",
             )
-        for dockWidget in self.dockWidgets:
-            dockWidget.reload(self.projectSettings)
+        for dockWidget in self.findChildren(QtWidgets.QDockWidget):
+            dockWidget.refresh()
 
     def settingsWindow(self):
         self.newSettingsWindow = ProjectSettingsDialog(
