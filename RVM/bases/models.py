@@ -41,13 +41,7 @@ class ProjectSettings(ProjectSettingsBase):
                 return trial
         return None
 
-    def getBoxFromName(self, name):
-        for box in self.boxes:
-            if box.name == name:
-                return box
-        return None
-
-    def updateTrial(self, trial):
+    def updateTrial(self, trial: TrialBase):
         for i, t in enumerate(self.trials):
             if t.uid == trial.uid:
                 self.trials[i] = trial

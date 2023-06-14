@@ -190,12 +190,14 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
                 break
         # update the animal in the tree widget
         self.addAnimals()
+        self.parent.refreshAllWidgets(self)
 
     def addAnimal(self, animal: Animal):
         # add the animal to the project settings
         self.projectSettings.animals.append(animal)
         # add the animal to the tree widget
         self.addAnimals()
+        self.parent.refreshAllWidgets(self)
 
     def deleteAnimal(self, item: QtWidgets.QTreeWidgetItem, column: int):
         self.parent.statusBar.showMessage("Deleting animal {}".format(item.text(0)))
@@ -290,7 +292,6 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         for animal in self.projectSettings.animals:
             # create a new tree widget item
             treeWidgetItem = QtWidgets.QTreeWidgetItem()
-            # set the text of the tree widget item
             treeWidgetItem.setText(0, animal.uid)
             treeWidgetItem.setText(1, animal.genotype)
             treeWidgetItem.setCheckState(

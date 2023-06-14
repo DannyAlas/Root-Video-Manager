@@ -27,6 +27,10 @@ if __name__ == "__main__":
         font-size: 15px;
         font-weight: 400;
     }
+    QLabel {
+        font-size: 15px;
+        font-weight: 600;
+    }
     """
     setup_theme('auto', additional_qss=qss)
     window = MainWindow()

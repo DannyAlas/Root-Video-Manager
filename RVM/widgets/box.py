@@ -71,8 +71,8 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.treeWidget.setSelectionMode(
             QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
         )
-        self.treeWidget.setHeaderLabels(["Box ID", "Name", "Trials", "Notes"])
-        self.treeWidget.setColumnCount(4)
+        self.treeWidget.setHeaderLabels(["Box ID", "Camera", "Notes"])
+        self.treeWidget.setColumnCount(3)
         self.treeWidget.itemChanged.connect(self.updateBoxFromItem)
         self.treeWidget.setContextMenuPolicy(
             QtCore.Qt.ContextMenuPolicy.CustomContextMenu
@@ -134,6 +134,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         """
         self.projectSettings.boxes.append(box)
         self.updateBoxList()
+        self.parent.refreshAllWidgets(self)
         self.signals.boxCreated.emit(box)
 
     def deleteBoxes(self):
@@ -171,6 +172,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
                 self.projectSettings.boxes[i] = box
 
         self.updateBoxList()
+        self.parent.refreshAllWidgets(self)
 
     def deleteBox(self, item, *args, **kwargs):
         """
@@ -190,7 +192,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             return
         
         self.parent.updateStatus("Deleting Box {}".format(box.uid))
-        confim = self.parent.confirmBox("Delete Box", f"Are you sure you want to delete Box: {box.name}?\n\nID: {box.uid}")
+        confim = self.parent.confirmBox("Delete Box", f"Are you sure you want to delete Box: {box.uid}?")
         if not confim:
             return
         # remove the box from the project settings
@@ -198,6 +200,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # update the box list
         self.updateBoxList()
         self.parent.updateStatus("Deleted box {}".format(box.uid))
+        self.parent.refreshAllWidgets(self)
 
     def updateBoxList(self, protocol: Protocol = None):
         """
@@ -216,21 +219,19 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             for box in self.projectSettings.boxes:
                 item = QtWidgets.QTreeWidgetItem()
                 item.setText(0, box.uid)
-                item.setText(1, box.name)
                 currentCamera = self.getCameraNameFromKey(box.camera)
-                item.setText(2, currentCamera)
+                item.setText(1, currentCamera)
                 self.treeWidget.setItemWidget(item, 1, camerasCombo)
-                item.setText(3, box.notes)
+                item.setText(2, box.notes)
                 self.treeWidget.addTopLevelItem(item)
         else:
             for box in protocol.boxes:
                 item = QtWidgets.QTreeWidgetItem()
                 item.setText(0, box.uid)
-                item.setText(1, box.name)
                 currentCamera = self.getCameraNameFromKey(box.camera)
-                item.setText(2, currentCamera)
+                item.setText(1, currentCamera)
                 self.treeWidget.setItemWidget(item, 1, camerasCombo)
-                item.setText(3, box.notes)
+                item.setText(2, box.notes)
                 self.treeWidget.addTopLevelItem(item)
 
     def getBoxFromItem(self, item: QtWidgets.QTreeWidgetItem, *args, **kwargs):
@@ -254,14 +255,9 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # get the box id from the item
         boxId = item.text(0)
         # get the box from the project settings
-        box = [box for box in self.projectSettings.boxes if box.uid == boxId]
+        box = self.projectSettings.getBoxFromId(boxId)
         if box is None:
             raise Exception("Could not find box with id {}".format(boxId))
-        if len(box) == 0:
-            raise Exception("Could not find box with id {}".format(boxId))
-        if len(box) > 1:
-            raise Exception("Found multiple boxes with id {}".format(boxId))
-        box = box[0]
         return box
 
     def updateBoxFromItem(self, item: QtWidgets.QTreeWidgetItem, column: int):
@@ -278,18 +274,16 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # get the box id from the item
         boxId = item.text(0)
         # get the box from the project settings
-        box = [box for box in self.projectSettings.boxes if box.uid == boxId][0]
+        box = self.projectSettings.getBoxFromId(boxId)
         if box is None:
             self.parent.updateStatus(
                 "Could not find box with id {}".format(boxId)
             )
         # update the box from the item
-        if column == 1:
-            box.name = item.text(1)
+        elif column == 1:
+            box.camera = self.getCameraKeyFromName(item.text(1))
         elif column == 2:
-            box.camera = self.getCameraKeyFromName(item.text(2))
-        elif column == 3:
-            box.notes = item.text(3)
+            box.notes = item.text(2)
 
     def refresh(self):
         """
@@ -361,8 +355,8 @@ class BoxDialog(QtWidgets.QDialog):
         self.layout.addLayout(self.formLayout)
 
         # create the box id line edit
-        self.boxNameLineEdit = QtWidgets.QLineEdit()
-        self.boxNameLineEdit.setPlaceholderText("Enter a box name")
+        self.boxIdLineEdit = QtWidgets.QLineEdit()
+        self.boxIdLineEdit.setPlaceholderText("Enter a box name")
 
         # create the camera combo box
         self.cameraComboBox = QtWidgets.QComboBox()
@@ -377,7 +371,7 @@ class BoxDialog(QtWidgets.QDialog):
         self.notesTextEdit.setPlaceholderText("Enter notes about the box")
 
         # add the widgets to the form layout
-        self.formLayout.addRow("Box Name", self.boxNameLineEdit)
+        self.formLayout.addRow("Box Name", self.boxIdLineEdit)
         self.formLayout.addRow("Camera", self.cameraComboBox)
         self.formLayout.addRow("", self.previewButton)
         self.formLayout.addRow("Notes", self.notesTextEdit)
@@ -404,8 +398,11 @@ class BoxDialog(QtWidgets.QDialog):
         self.buttonLayout.addWidget(self.deleteButton)
 
     def checkInputs(self):
-        if self.boxNameLineEdit.text() == "":
-            return False, "Please enter a box name"
+        if self.currentBox is None:
+            if self.boxIdLineEdit.text() == "":
+                return False, "Please enter a box name"
+            if self.boxIdLineEdit.text() in [box.uid for box in self.projectSettings.boxes]:
+                return False, "Box ID already exists please enter a unique box ID"
         return True, ""
 
     def preview(self):
@@ -427,7 +424,9 @@ class BoxDialog(QtWidgets.QDialog):
 
     def loadBox(self, box: Box):
         self.currentBox = box
-        self.boxNameLineEdit.setText(box.name)
+        self.boxIdLineEdit.setText(box.uid)
+        self.boxIdLineEdit.setReadOnly(True)
+        self.boxIdLineEdit.setEnabled(False)
         try:
             self.cameraComboBox.setCurrentIndex(
                 self.cameraComboBox.findText(self.mainWin.videoDevices[box.camera])
@@ -467,12 +466,12 @@ class BoxDialog(QtWidgets.QDialog):
 
         if self.currentBox is None:
             self.currentBox = Box(
-                name=self.boxNameLineEdit.text(),
+                uid=self.boxIdLineEdit.text(),
                 camera=cameraKey,
                 notes=self.notesTextEdit.toPlainText(),
             )
         else:
-            self.currentBox.name = self.boxNameLineEdit.text()
+            self.currentBox.uid = self.boxIdLineEdit.text()
             self.currentBox.camera = cameraKey
             self.currentBox.notes = self.notesTextEdit.toPlainText()
 

@@ -148,7 +148,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # add a combobox and add button next to it for protocols
         self.protocolComboBox = QtWidgets.QComboBox()
         for protocol in self.projectSettings.protocols:
-            self.protocolComboBox.addItem(protocol.name)
+            self.protocolComboBox.addItem(protocol.uid)
         self.protocolComboBox.currentTextChanged.connect(self.protocolChanged)
         self.toolbar.addWidget(self.protocolComboBox)
         self.addProtocolButton = QtWidgets.QToolButton()
@@ -215,7 +215,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def protocolChanged(self, text):
-        # refresh the open dock widgets to reflect the new protocol
+        # call the refresh method on the dock widgets
         pass
 
     def addProtocol(self):
@@ -269,6 +269,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if dir == "":
             self.updateStatus("No project selected")
+            return
         try:
             self.projectSettings.load(dir)
             self.loadProject(self.projectSettings)
@@ -279,8 +280,21 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Failed to load project: {e}",
                 severity="Critical",
             )
+        self.refreshAllWidgets(self)
+
+    def refreshAllWidgets(self, caller: QtWidgets.QDockWidget):
+        """
+        Refresh all widgets except the caller widget. The caller widget is the widget that called this method and it should handle its own refresh.
+
+        Parameters
+        ----------
+        caller : QtWidgets.QDockWidget
+            The widget that called this method.
+        """
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
-            dockWidget.refresh()
+            if dockWidget != caller:
+                dockWidget.refresh()
+                
 
     def settingsWindow(self):
         self.newSettingsWindow = ProjectSettingsDialog(

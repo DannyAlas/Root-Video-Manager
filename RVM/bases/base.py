@@ -20,8 +20,7 @@ class AnimalBase(BaseModel):
     notes: str = ""
 
 class BoxBase(BaseModel):
-    uid: str = Field(default_factory=uid_gen)
-    name: str = ""
+    uid: str = ""
     camera: str = ""
     notes: str = ""
 
@@ -42,8 +41,7 @@ class TrialBase(BaseModel):
         arbitrary_types_allowed = True
 
 class ProtocalBase(BaseModel):
-    uid: str = Field(default_factory=uid_gen)
-    name: str = ""
+    uid: str = ""
     description: Optional[str] = None
     animals: List[AnimalBase] = []
     boxes: List[BoxBase] = []

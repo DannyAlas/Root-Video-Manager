@@ -97,7 +97,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         trialItem = QtWidgets.QTreeWidgetItem(self.treeWidget)
         trialItem.setText(0, trial.uid)
         trialItem.setText(1, trial.animal.uid)
-        trialItem.setText(2, trial.box.name)
+        trialItem.setText(2, trial.box.uid)
         trialItem.setText(3, trial.state)
         # adjust the color if the state is "Waiting"
         if trial.state == "Running":
@@ -135,7 +135,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         elif column == 1:
             trial.animal = self.projectSettings.getAnimalFromId(item.text(1))
         elif column == 2:
-            trial.box = self.projectSettings.getBoxFromName(item.text(2))
+            trial.box = self.projectSettings.getBoxFromId(item.text(2))
         elif column == 3:
             trial.state = item.text(3)
         elif column == 4:
@@ -203,7 +203,6 @@ class TrialDialog(QtWidgets.QDialog):
         self.deleteButton = QtWidgets.QPushButton()
         self.deleteButton.setIcon(QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "delete.png")))
         self.deleteButton.clicked.connect(self.deleteTrial)
-        self.deleteButton.setFlat(True)
         self.deleteButton.setStyleSheet("background-color: rgb(212, 99, 99);")
         self.deleteButton.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
         self.formLayout.addWidget(self.deleteButton)
@@ -215,7 +214,7 @@ class TrialDialog(QtWidgets.QDialog):
         self.animalComboBox.addItems([animal.uid for animal in self.projectSettings.animals])
         self.formLayout.addRow("Animal ID", self.animalComboBox)
         self.boxComboBox = QtWidgets.QComboBox()
-        self.boxComboBox.addItems([box.name for box in self.projectSettings.boxes])
+        self.boxComboBox.addItems([box.uid for box in self.projectSettings.boxes])
         self.formLayout.addRow("Box Name", self.boxComboBox)
         self.stateComboBox = QtWidgets.QComboBox()
         self.stateComboBox.addItems(Trial.avalible_states())
@@ -242,7 +241,7 @@ class TrialDialog(QtWidgets.QDialog):
         self.currentTrial = trial
         self.uidLineEdit.setText(trial.uid)
         self.animalComboBox.setCurrentText(trial.animal.uid)
-        self.boxComboBox.setCurrentText(trial.box.name)
+        self.boxComboBox.setCurrentText(trial.box.uid)
         self.stateComboBox.setCurrentText(trial.state)
         self.startDateTimeEdit.setDateTime(trial.start_time)
         self.endDateTimeEdit.setDateTime(trial.end_time)
@@ -268,7 +267,7 @@ class TrialDialog(QtWidgets.QDialog):
         if self.currentTrial is None:
             self.currentTrial = Trial(
                 animal=self.projectSettings.getAnimalFromId(self.animalComboBox.currentText()),
-                box=self.projectSettings.getBoxFromName(self.boxComboBox.currentText()),
+                box=self.projectSettings.getBoxFromId(self.boxComboBox.currentText()),
                 state=self.stateComboBox.currentText(),
                 start_time=self.startDateTimeEdit.dateTime().toPyDateTime(),
                 end_time=self.endDateTimeEdit.dateTime().toPyDateTime(),
@@ -277,7 +276,7 @@ class TrialDialog(QtWidgets.QDialog):
 
         else:
             self.currentTrial.animal = self.projectSettings.getAnimalFromId(self.animalComboBox.currentText())
-            self.currentTrial.box = self.projectSettings.getBoxFromName(self.boxComboBox.currentText())
+            self.currentTrial.box = self.projectSettings.getBoxFromId(self.boxComboBox.currentText())
             self.currentTrial.state = self.stateComboBox.currentText()
             self.currentTrial.start_time = self.startDateTimeEdit.dateTime().toPyDateTime()
             self.currentTrial.end_time = self.endDateTimeEdit.dateTime().toPyDateTime()
