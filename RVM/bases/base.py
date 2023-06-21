@@ -1,16 +1,19 @@
 # pydantic base models for the data structures used in the RVM
 from asyncio import protocols
-from pydantic import BaseModel, Field, validator
-from uuid import uuid4
-from typing import Literal, List, Optional, TypeVar
 from datetime import datetime
 from pathlib import Path
+from typing import List, Literal, Optional, TypeVar
+from uuid import uuid4
+
 from pandas import DataFrame
+from pydantic import BaseModel, Field, validator
 
 DataFrameType = TypeVar("DataFrameType", DataFrame, dict)
 
+
 def uid_gen():
     return str(uuid4())
+
 
 class AnimalBase(BaseModel):
     uid: str = ""
@@ -19,10 +22,12 @@ class AnimalBase(BaseModel):
     excluded: bool = False
     notes: str = ""
 
+
 class BoxBase(BaseModel):
     uid: str = ""
     camera: str = ""
     notes: str = ""
+
 
 class TrialBase(BaseModel):
     uid: str = Field(default_factory=uid_gen)
@@ -40,12 +45,14 @@ class TrialBase(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class ProtocalBase(BaseModel):
     uid: str = ""
     description: Optional[str] = None
     animals: List[AnimalBase] = []
     boxes: List[BoxBase] = []
     trials: List[TrialBase] = []
+
 
 class ProjectSettingsBase(BaseModel):
     uid: str = Field(default_factory=uid_gen)

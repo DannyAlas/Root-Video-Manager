@@ -1,18 +1,24 @@
 # a dock widget for the trials
 
-from math import e
-import re
-from wsgiref import validate
-from PyQt6 import QtWidgets, QtCore, QtGui
-from RVM.bases import ProjectSettings, Box, Animal, Trial, Protocol, ProtocalBase
 import os
+import re
 from itertools import cycle
+from math import e
+from wsgiref import validate
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from RVM.bases import (Animal, Box, ProjectSettings, ProtocalBase, Protocol,
+                       Trial)
+
+
 class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
     # state colors
     stateColors = {
         "Good": QtGui.QColor(11, 212, 125),
         "Bad": QtGui.QColor(212, 99, 99),
     }
+
     def __init__(self, projectSettings: ProjectSettings, parent):
         super().__init__(parent)
         self.projectSettings = projectSettings
@@ -68,7 +74,9 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
 
         self.editorWidget = QtWidgets.QScrollArea()
         self.editorWidget.setWidgetResizable(True)
-        self.editorWidget.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.editorWidget.setVerticalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+        )
         self.editorLayout = QtWidgets.QGridLayout()
         self.editorWidget.setLayout(self.editorLayout)
 
@@ -83,7 +91,7 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
         self.modifyBoxesButton.setIcon(
             QtGui.QIcon(os.path.join(self.parent.iconsDir, "settings.png"))
         )
-        self.modifyBoxesButton.clicked.connect(self.modifyBoxes)        
+        self.modifyBoxesButton.clicked.connect(self.modifyBoxes)
         self.boxSelector = QtWidgets.QListWidget()
         self.selectBoxesLabel = QtWidgets.QLabel()
         self.selectBoxesLabel.setText("Select Boxes")
@@ -94,7 +102,7 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
         self.modifyAnimalsButton.setIcon(
             QtGui.QIcon(os.path.join(self.parent.iconsDir, "settings.png"))
         )
-        self.modifyAnimalsButton.clicked.connect(self.modifyAnimals)      
+        self.modifyAnimalsButton.clicked.connect(self.modifyAnimals)
         self.animalSelectorLabel = QtWidgets.QLabel()
         self.animalSelectorLabel.setText("Select Animals")
         self.animalSelector = QtWidgets.QListWidget()
@@ -116,7 +124,11 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
     def updateBoxSelector(self):
         self.boxSelector.clear()
         self.selectAllBoxesItem = QtWidgets.QListWidgetItem("Select All")
-        self.selectAllBoxesItem.setFlags(self.selectAllBoxesItem.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsAutoTristate)
+        self.selectAllBoxesItem.setFlags(
+            self.selectAllBoxesItem.flags()
+            | QtCore.Qt.ItemFlag.ItemIsUserCheckable
+            | QtCore.Qt.ItemFlag.ItemIsAutoTristate
+        )
         self.selectAllBoxesItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
         self.boxSelector.addItem(self.selectAllBoxesItem)
         for box in self.projectSettings.boxes:
@@ -124,12 +136,18 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
             item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(QtCore.Qt.CheckState.Unchecked)
             self.boxSelector.addItem(item)
-        self.boxSelector.itemChanged.connect(lambda item: self.updateBoxListSelection(item))
+        self.boxSelector.itemChanged.connect(
+            lambda item: self.updateBoxListSelection(item)
+        )
 
     def updateAnimalSelector(self):
         self.animalSelector.clear()
         self.selectAllAnimalsItem = QtWidgets.QListWidgetItem("Select All")
-        self.selectAllAnimalsItem.setFlags(self.selectAllBoxesItem.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable | QtCore.Qt.ItemFlag.ItemIsAutoTristate)
+        self.selectAllAnimalsItem.setFlags(
+            self.selectAllBoxesItem.flags()
+            | QtCore.Qt.ItemFlag.ItemIsUserCheckable
+            | QtCore.Qt.ItemFlag.ItemIsAutoTristate
+        )
         self.selectAllAnimalsItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
         self.animalSelector.addItem(self.selectAllAnimalsItem)
         for animal in self.projectSettings.animals:
@@ -137,7 +155,9 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
             item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(QtCore.Qt.CheckState.Unchecked)
             self.animalSelector.addItem(item)
-        self.animalSelector.itemChanged.connect(lambda item: self.updateAnimalListSelection(item))
+        self.animalSelector.itemChanged.connect(
+            lambda item: self.updateAnimalListSelection(item)
+        )
 
     def validateProtocol(self):
         if self.protocolNameEdit.text() == "":
@@ -153,22 +173,45 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
             protocol = Protocol(
                 uid=self.protocolNameEdit.text(),
                 description=self.protocolDescriptionEdit.toPlainText(),
-                boxes=[self.projectSettings.getBoxFromId(self.boxSelector.item(i).text()) for i in range(self.boxSelector.count()) if self.boxSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked],
-                animals=[self.projectSettings.getAnimalFromId(self.animalSelector.item(i).text()) for i in range(self.animalSelector.count()) if self.animalSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked]
+                boxes=[
+                    self.projectSettings.getBoxFromId(self.boxSelector.item(i).text())
+                    for i in range(self.boxSelector.count())
+                    if self.boxSelector.item(i).checkState()
+                    == QtCore.Qt.CheckState.Checked
+                ],
+                animals=[
+                    self.projectSettings.getAnimalFromId(
+                        self.animalSelector.item(i).text()
+                    )
+                    for i in range(self.animalSelector.count())
+                    if self.animalSelector.item(i).checkState()
+                    == QtCore.Qt.CheckState.Checked
+                ],
             )
             self.projectSettings.protocols.append(protocol)
 
         else:
-            self.currentProtocol.description = self.protocolDescriptionEdit.toPlainText()
-            self.currentProtocol.boxes = [self.projectSettings.getBoxFromId(self.boxSelector.item(i).text()) for i in range(self.boxSelector.count()) if self.boxSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked]
-            self.currentProtocol.animals = [self.projectSettings.getAnimalFromId(self.animalSelector.item(i).text()) for i in range(self.animalSelector.count()) if self.animalSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked]
+            self.currentProtocol.description = (
+                self.protocolDescriptionEdit.toPlainText()
+            )
+            self.currentProtocol.boxes = [
+                self.projectSettings.getBoxFromId(self.boxSelector.item(i).text())
+                for i in range(self.boxSelector.count())
+                if self.boxSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked
+            ]
+            self.currentProtocol.animals = [
+                self.projectSettings.getAnimalFromId(self.animalSelector.item(i).text())
+                for i in range(self.animalSelector.count())
+                if self.animalSelector.item(i).checkState()
+                == QtCore.Qt.CheckState.Checked
+            ]
 
             # save the protocol
             protocol = self.projectSettings.getProtocolFromId(self.currentProtocol.uid)
             protocol.description = self.currentProtocol.description
             protocol.boxes = self.currentProtocol.boxes
             protocol.animals = self.currentProtocol.animals
-                        
+
         self.updateProtocolSelector()
 
     def updateProtocolName(self):
@@ -187,7 +230,7 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
 
     def deleteProtocol(self):
         pass
-    
+
     def createProtocol(self):
         pass
 
@@ -226,58 +269,85 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
             if item.checkState() == QtCore.Qt.CheckState.Checked:
                 allChecked = True
                 for i in range(1, self.boxSelector.count()):
-                    if self.boxSelector.item(i).checkState() != QtCore.Qt.CheckState.Checked:
+                    if (
+                        self.boxSelector.item(i).checkState()
+                        != QtCore.Qt.CheckState.Checked
+                    ):
                         allChecked = False
                         break
                 if allChecked:
                     self.selectAllBoxesItem.setCheckState(QtCore.Qt.CheckState.Checked)
             else:
-                self.selectAllBoxesItem.setCheckState(QtCore.Qt.CheckState.PartiallyChecked)
+                self.selectAllBoxesItem.setCheckState(
+                    QtCore.Qt.CheckState.PartiallyChecked
+                )
         if item == self.selectAllBoxesItem:
             if item.checkState() == QtCore.Qt.CheckState.Checked:
                 for i in range(1, self.boxSelector.count()):
                     self.boxSelector.item(i).setCheckState(QtCore.Qt.CheckState.Checked)
             elif item.checkState() == QtCore.Qt.CheckState.Unchecked:
                 for i in range(1, self.boxSelector.count()):
-                    self.boxSelector.item(i).setCheckState(QtCore.Qt.CheckState.Unchecked)
+                    self.boxSelector.item(i).setCheckState(
+                        QtCore.Qt.CheckState.Unchecked
+                    )
             elif item.checkState() == QtCore.Qt.CheckState.PartiallyChecked:
                 allUnchecked = True
                 for i in range(1, self.boxSelector.count()):
-                    if self.boxSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked:
+                    if (
+                        self.boxSelector.item(i).checkState()
+                        == QtCore.Qt.CheckState.Checked
+                    ):
                         allUnchecked = False
                         break
                 if allUnchecked:
-                    self.selectAllBoxesItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
+                    self.selectAllBoxesItem.setCheckState(
+                        QtCore.Qt.CheckState.Unchecked
+                    )
 
     def updateAnimalListSelection(self, item):
         if item != self.selectAllAnimalsItem:
             if item.checkState() == QtCore.Qt.CheckState.Checked:
                 allChecked = True
                 for i in range(1, self.animalSelector.count()):
-                    if self.animalSelector.item(i).checkState() != QtCore.Qt.CheckState.Checked:
+                    if (
+                        self.animalSelector.item(i).checkState()
+                        != QtCore.Qt.CheckState.Checked
+                    ):
                         allChecked = False
                         break
                 if allChecked:
-                    self.selectAllAnimalsItem.setCheckState(QtCore.Qt.CheckState.Checked)
+                    self.selectAllAnimalsItem.setCheckState(
+                        QtCore.Qt.CheckState.Checked
+                    )
             else:
                 # tri state to not uncheck all animals
-                self.selectAllAnimalsItem.setCheckState(QtCore.Qt.CheckState.PartiallyChecked)
+                self.selectAllAnimalsItem.setCheckState(
+                    QtCore.Qt.CheckState.PartiallyChecked
+                )
         if item == self.selectAllAnimalsItem:
             if item.checkState() == QtCore.Qt.CheckState.Checked:
                 for i in range(1, self.animalSelector.count()):
-                    self.animalSelector.item(i).setCheckState(QtCore.Qt.CheckState.Checked)
+                    self.animalSelector.item(i).setCheckState(
+                        QtCore.Qt.CheckState.Checked
+                    )
             elif item.checkState() == QtCore.Qt.CheckState.Unchecked:
                 for i in range(1, self.animalSelector.count()):
-                    self.animalSelector.item(i).setCheckState(QtCore.Qt.CheckState.Unchecked)
+                    self.animalSelector.item(i).setCheckState(
+                        QtCore.Qt.CheckState.Unchecked
+                    )
             elif item.checkState() == QtCore.Qt.CheckState.PartiallyChecked:
                 allUnchecked = True
                 for i in range(1, self.animalSelector.count()):
-                    if self.animalSelector.item(i).checkState() == QtCore.Qt.CheckState.Checked:
+                    if (
+                        self.animalSelector.item(i).checkState()
+                        == QtCore.Qt.CheckState.Checked
+                    ):
                         allUnchecked = False
                         break
                 if allUnchecked:
-                    self.selectAllAnimalsItem.setCheckState(QtCore.Qt.CheckState.Unchecked)
-
+                    self.selectAllAnimalsItem.setCheckState(
+                        QtCore.Qt.CheckState.Unchecked
+                    )
 
     def refresh(self):
         self.updateBoxSelector()
@@ -285,7 +355,13 @@ class ProtocolManagerDockWidget(QtWidgets.QDockWidget):
 
 
 class ProgramaticTrialCreator(QtWidgets.QDialog):
-    def __init__(self, protocolManager: ProtocolManagerDockWidget, projectSettings: ProjectSettings, mainWin: QtWidgets.QMainWindow=None, parent=None): 
+    def __init__(
+        self,
+        protocolManager: ProtocolManagerDockWidget,
+        projectSettings: ProjectSettings,
+        mainWin: QtWidgets.QMainWindow = None,
+        parent=None,
+    ):
         super().__init__(parent=parent)
         self.protocolManager = protocolManager
         self.projectSettings = projectSettings
@@ -295,7 +371,9 @@ class ProgramaticTrialCreator(QtWidgets.QDialog):
     def initUi(self):
         self.setWindowTitle("Programatic Trial Creator")
         self.setWindowIcon(os.path.join(self.mainWin.iconsDir, "logo.png"))
-        self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlags(
+            self.windowFlags() & ~QtCore.Qt.WindowType.WindowContextHelpButtonHint
+        )
         self.setModal(True)
 
         # number of trials
@@ -312,13 +390,16 @@ class ProgramaticTrialCreator(QtWidgets.QDialog):
 
         # button box
         self.buttonBox = QtWidgets.QDialogButtonBox()
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        self.buttonBox.setStandardButtons(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
     def createTrials(self, protocol: Protocol, trial_num: int):
         animalBoxDict = {}
-        for i,J in list(zip(protocol.animals, cycle(protocol.boxes))):
+        for i, J in list(zip(protocol.animals, cycle(protocol.boxes))):
             animalBoxDict[i.uid] = J.uid
         trials = []
         for i in range(trial_num):
@@ -334,15 +415,16 @@ class ProgramaticTrialCreator(QtWidgets.QDialog):
             return
         trial_num = self.trialNumSpinBox.value()
         if trial_num == 0:
-            QtWidgets.QMessageBox.critical(self, "Error", "Trial number must be greater than 0.")
+            QtWidgets.QMessageBox.critical(
+                self, "Error", "Trial number must be greater than 0."
+            )
             return
         trial_length = self.trialLengthTimeEdit.time().msecsSinceStartOfDay() / 1000
         if trial_length == 0:
-            QtWidgets.QMessageBox.critical(self, "Error", "Trial length must be greater than 0.")
+            QtWidgets.QMessageBox.critical(
+                self, "Error", "Trial length must be greater than 0."
+            )
             return
         trials = self.createTrials(protocol, trial_num)
         self.protocolManager.addTrials(trials)
         self.close()
-
-
-

@@ -1,0 +1,24 @@
+{
+    "uid": "498980e1-d21d-4b35-99ee-0cdcd8637d10",
+    "project_name": "",
+    "created": "2023-06-16T13:01:42.015416",
+    "project_location": "C:\\Users\\danie\\Desktop\\Code\\Root-Video-Manager",
+    "window_size": [
+        1280,
+        720
+    ],
+    "window_position": [
+        157,
+        105
+    ],
+    "video_devices": {
+        "@device_pnp_\\\\?\\usb#vid_0c45&pid_672e&mi_00#6&d5b0d98&0&0000#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\\global": "Integrated Webcam",
+        "@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\\{27B05C2D-93DC-474A-A5DA-9BBA34CB2A9C}": "Streamlabs OBS Virtual Webcam",
+        "@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\\{4A2FEA90-B0A0-438E-8BC3-D84157660D0A}": "Logi Capture",
+        "@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\\{A3FCE0F5-3493-419F-958A-ABA1250EC20B}": "OBS Virtual Camera"
+    },
+    "protocols": [],
+    "animals": [],
+    "trials": [],
+    "boxes": []
+}

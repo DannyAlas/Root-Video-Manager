@@ -1,8 +1,10 @@
-from json import load
-import pandas as pd
-from RVM.bases import Trial
-from datetime import datetime
 import os
+from datetime import datetime
+from json import load
+
+import pandas as pd
+
+from RVM.bases import Trial
 
 
 class Loader:

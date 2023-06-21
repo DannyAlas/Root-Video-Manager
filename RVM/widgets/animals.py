@@ -1,9 +1,11 @@
 # a dock widget for configuring the project animals
 
-from calendar import c
-from PyQt6 import QtWidgets, QtCore, QtGui
-from RVM.bases import ProjectSettings, Animal
 import os
+from calendar import c
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from RVM.bases import Animal, ProjectSettings
 
 
 class AnimalManagerDockWidget(QtWidgets.QDockWidget):
@@ -122,9 +124,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         uid = item.text(0)
         # get the animal from the project settings
         animal = [
-            animal
-            for animal in self.projectSettings.animals
-            if animal.uid == uid
+            animal for animal in self.projectSettings.animals if animal.uid == uid
         ]
         if animal is None:
             self.parent.statusBar.showMessage(
@@ -137,9 +137,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             )
             return
         if len(animal) > 1:
-            self.parent.statusBar.showMessage(
-                "Multiple animals with id {}".format(uid)
-            )
+            self.parent.statusBar.showMessage("Multiple animals with id {}".format(uid))
 
         animal = animal[0]
         # update the animal from the item
@@ -225,9 +223,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         uid = item.text(0)
         # get the animal from the project settings
         animal = [
-            animal
-            for animal in self.projectSettings.animals
-            if animal.uid == uid
+            animal for animal in self.projectSettings.animals if animal.uid == uid
         ][0]
         if animal is None:
             self.parent.statusBar.showMessage(
@@ -271,9 +267,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             uid = item.text(0)
             # get the animal from the project settings
             animal = [
-                animal
-                for animal in self.projectSettings.animals
-                if animal.uid == uid
+                animal for animal in self.projectSettings.animals if animal.uid == uid
             ][0]
             if animal is None:
                 self.parent.statusBar.showMessage(

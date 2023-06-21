@@ -1,18 +1,21 @@
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QMutex, QObject, QTimer, Qt
 import datetime
-import numpy as np
 import time
-import cv2
 from queue import Queue
+
+import cv2
+import numpy as np
+from PyQt6.QtCore import QMutex, QObject, Qt, QTimer, pyqtSignal, pyqtSlot
 
 
 class vrSignals(QObject):
     """Defines the signals available from a running worker thread
+
     Supported signals are:
     finished: No data
     error: a string message and a bool whether this is worth printing to the log
-    result:`object` data returned from processing, anything
-    progress: `int` indicating % progress"""
+    progress: `str` indicating % progress
+    frame: `np.ndarray` the frame to be displayed
+    """
 
     finished = pyqtSignal()
     error = pyqtSignal(str, bool)
@@ -21,7 +24,11 @@ class vrSignals(QObject):
 
 
 class vidReader(QObject):
-    """Puts frame collection into the background, so frames from different cameras can be collected in parallel. this collects a single frame from a camera. status is a camStatus object, vc is a VideoCapture object"""
+    """A QObject responsible for frame collection. This is frame blocking and should be run in an isolated thread.
+
+    Attributes:
+        vc: a VideoCapture object
+    """
 
     def __init__(self, vc: QMutex):
         super(vidReader, self).__init__()
@@ -59,7 +66,7 @@ class vidReader(QObject):
             self.close()
             return
         # print the delta time
-        delta = (self.dnow - self.lastTime)
+        delta = self.dnow - self.lastTime
         print(f"fps: {1 / delta.total_seconds()}")
 
         self.sendNewFrame(frame)  # send back to window
@@ -137,7 +144,8 @@ class prevSignals(QObject):
     finished: No data
     error: a string message and a bool whether this is worth printing to the log
     result:`object` data returned from processing, anything
-    progress: `int` indicating % progress"""
+    progress: `int` indicating % progress
+    """
 
     finished = pyqtSignal()
     error = pyqtSignal(str, bool)
@@ -172,7 +180,7 @@ class previewer(QObject):
         self.timer = QTimer()
         self.timer.timeout.connect(self.loop)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self.timer.start(int(self.mspf/2))
+        self.timer.start(int(self.mspf / 2))
         self.timerRunning = True
 
     def loop(self):
@@ -249,9 +257,10 @@ class vwSignals(QObject):
 
 
 class vidWriter(QObject):
-    """The vidWriter creates a cv2.VideoWriter object at initialization, and it takes frames in the queue and writes them to file. This is a failsafe, so if the videowriter writes slower than the timer reads frames, then we can store those extra frames in memory until the vidWriter object can write them to the HD.
-        https://www.pythonforthelab.com/blog/handling-and-sharing-data-between-threads/
-    QRunnables run in the background. Trying to directly modify the GUI display from inside the QRunnable will make everything catastrophically slow, but you can pass messages back to the GUI using vrSignals.
+    """TODO: REWORK THIS
+    A ~failsafe~ video writer. Creates a cv2.VideoWriter object at initialization, and it takes frames in the queue that gets writen to a file. 
+    ~This somewhat failsafe as in if the videowriter writes slower than the timer reads frames, the extra frames will be stored in memory until the vidWriter object can write them.
+
     """
 
     def __init__(self, fn: str, vidvars: dict, frames: Queue):
@@ -276,8 +285,7 @@ class vidWriter(QObject):
 
     @pyqtSlot()
     def run(self) -> None:
-        """this loops until we receive a frame that is a string
-        the save function will pass None to the frame queue when we are done recording
+        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording
         """
         printFreq = 100
 

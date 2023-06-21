@@ -1,11 +1,12 @@
 import os
 from typing import Literal
-from PyQt6 import QtCore, QtGui, QtWidgets
+
 from bases import ProjectSettings
-from widgets import (
-    BoxManagerDockWidget, AnimalManagerDockWidget, TrialManagerDockWidget, ProtocolManagerDockWidget
-)
 from capture_devices import devices
+from PyQt6 import QtCore, QtGui, QtWidgets
+from widgets import (AnimalManagerDockWidget, BoxManagerDockWidget,
+                     ProtocolManagerDockWidget, TrialManagerDockWidget)
+
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -14,24 +15,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.qtsettings = QtCore.QSettings("RVM", "RVM")
         self.projectSettings = ProjectSettings()
         self.dockWidgets = []
-        
+
         self.iconsDir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "icons", "dark"
         )
         self.window().setWindowIcon(
-            QtGui.QIcon(
-                os.path.join(
-                    self.iconsDir, "..", "logo.png"
-                )
-            )
+            QtGui.QIcon(os.path.join(self.iconsDir, "..", "logo.png"))
         )
         # set the icon for the windows taskbar
-        
+
         # create a status bar
         self.statusBar = QtWidgets.QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage("Ready")
-        
+
         self.initSettings()
         self.initUI()
 
@@ -44,9 +41,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     f"Loaded the latest project settings for {self.projectSettings.project_name}"
                 )
             except:
-                self.updateStatus(
-                    "Failed to load the latest project settings"
-                )
+                self.updateStatus("Failed to load the latest project settings")
         try:
             self.loadProject(self.projectSettings)
             self.updateStatus(
@@ -100,7 +95,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 d_dict[key] = value + f" ({index+1})"
 
         return d_dict
-  
+
     def initUI(self):
         # create toolbar
         self.toolbar = QtWidgets.QToolBar()
@@ -201,18 +196,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def createDockWidgets(self):
         self.boxManagerDockWidget = BoxManagerDockWidget(self.projectSettings, self)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.boxManagerDockWidget)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.boxManagerDockWidget
+        )
         self.viewMenu.addAction(self.boxManagerDockWidget.toggleViewAction())
-        self.animalManagerDockWidget = AnimalManagerDockWidget(self.projectSettings, self)
+        self.animalManagerDockWidget = AnimalManagerDockWidget(
+            self.projectSettings, self
+        )
         self.viewMenu.addAction(self.animalManagerDockWidget.toggleViewAction())
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget
+        )
         self.trialManagerDockWidget = TrialManagerDockWidget(self.projectSettings, self)
         self.viewMenu.addAction(self.trialManagerDockWidget.toggleViewAction())
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget)
-        self.protocolManagerDockWidget = ProtocolManagerDockWidget(self.projectSettings, self)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget
+        )
+        self.protocolManagerDockWidget = ProtocolManagerDockWidget(
+            self.projectSettings, self
+        )
         self.viewMenu.addAction(self.protocolManagerDockWidget.toggleViewAction())
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget)
-
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget
+        )
 
     def protocolChanged(self, text):
         # call the refresh method on the dock widgets
@@ -225,7 +231,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self,
         title,
         text,
-        severity: Literal["Information", "Warning", "Critical", "Question"] = "Information",
+        severity: Literal[
+            "Information", "Warning", "Critical", "Question"
+        ] = "Information",
     ):
         severity = {
             "Information": QtWidgets.QMessageBox.Icon.Information,
@@ -294,7 +302,6 @@ class MainWindow(QtWidgets.QMainWindow):
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
             if dockWidget != caller:
                 dockWidget.refresh()
-                
 
     def settingsWindow(self):
         self.newSettingsWindow = ProjectSettingsDialog(
@@ -339,7 +346,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.startVideoStreamButton.setEnabled(True)
 
-
     def saveSettings(self):
         # save position and size of the window
         self.projectSettings.window_position = (self.pos().x(), self.pos().y())
@@ -355,6 +361,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # stop all camera streams
         self.saveSettings()
         event.accept()
+
 
 class NewProjectDialogSignals(QtCore.QObject):
     projectSettingsSignal = QtCore.pyqtSignal(ProjectSettings)

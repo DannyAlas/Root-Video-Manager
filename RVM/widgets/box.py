@@ -1,15 +1,19 @@
 # a dock widget for the management of boxes in a project
 # updates the project settings when a box is modified
 
-from PyQt6 import QtWidgets, QtCore, QtGui
-from RVM.bases import ProjectSettings, Protocol, Box, BoxBase
 import os
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from RVM.bases import Box, BoxBase, ProjectSettings, Protocol
 from RVM.camera import Camera, CameraWindow
+
 
 class BoxManagerDockWidgetSignals(QtCore.QObject):
     boxCreated = QtCore.pyqtSignal(Box)
     boxDeleted = QtCore.pyqtSignal(Box)
     boxUpdated = QtCore.pyqtSignal(Box)
+
 
 class BoxManagerDockWidget(QtWidgets.QDockWidget):
     def __init__(self, projectSettings: ProjectSettings, parent):
@@ -190,9 +194,11 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         else:
             self.parent.messageBox("Error", "Could not delete box", "Warning")
             return
-        
+
         self.parent.updateStatus("Deleting Box {}".format(box.uid))
-        confim = self.parent.confirmBox("Delete Box", f"Are you sure you want to delete Box: {box.uid}?")
+        confim = self.parent.confirmBox(
+            "Delete Box", f"Are you sure you want to delete Box: {box.uid}?"
+        )
         if not confim:
             return
         # remove the box from the project settings
@@ -276,9 +282,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # get the box from the project settings
         box = self.projectSettings.getBoxFromId(boxId)
         if box is None:
-            self.parent.updateStatus(
-                "Could not find box with id {}".format(boxId)
-            )
+            self.parent.updateStatus("Could not find box with id {}".format(boxId))
         # update the box from the item
         elif column == 1:
             box.camera = self.getCameraKeyFromName(item.text(1))
@@ -334,7 +338,12 @@ class BoxDialogSignals(QtCore.QObject):
 
 
 class BoxDialog(QtWidgets.QDialog):
-    def __init__(self, projectSettings: ProjectSettings, mainWin: QtWidgets.QMainWindow=None, parent=None):
+    def __init__(
+        self,
+        projectSettings: ProjectSettings,
+        mainWin: QtWidgets.QMainWindow = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.projectSettings = projectSettings
         self.signals = BoxDialogSignals()
@@ -391,7 +400,7 @@ class BoxDialog(QtWidgets.QDialog):
         # delete button
         self.deleteButton = QtWidgets.QPushButton("Delete")
         self.deleteButton.clicked.connect(self.deleteBox)
-        
+
         # add the buttons to the button layout
         self.buttonLayout.addWidget(self.okButton)
         self.buttonLayout.addWidget(self.cancelButton)
@@ -401,7 +410,9 @@ class BoxDialog(QtWidgets.QDialog):
         if self.currentBox is None:
             if self.boxIdLineEdit.text() == "":
                 return False, "Please enter a box name"
-            if self.boxIdLineEdit.text() in [box.uid for box in self.projectSettings.boxes]:
+            if self.boxIdLineEdit.text() in [
+                box.uid for box in self.projectSettings.boxes
+            ]:
                 return False, "Box ID already exists please enter a unique box ID"
         return True, ""
 
@@ -409,9 +420,11 @@ class BoxDialog(QtWidgets.QDialog):
         videoDeviceIndex = self.cameraComboBox.currentIndex()
         # dock widget for the camera
         cameraDockWidget = QtWidgets.QDockWidget()
-        cameraWindow = CameraWindow(parent=self)
+        cameraWindow = CameraWindow(parent=self, mainWin=self.mainWin)
         cameraDockWidget.setWidget(cameraWindow)
-        self.mainWin.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, cameraDockWidget)
+        self.mainWin.addDockWidget(
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, cameraDockWidget
+        )
         cameraDockWidget.show()
         cameraWindow.createCamera(
             camNum=videoDeviceIndex,

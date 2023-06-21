@@ -1,8 +1,11 @@
 # a dock widget for the trials
 
-from PyQt6 import QtWidgets, QtCore, QtGui
-from RVM.bases import ProjectSettings, Box, Animal, Trial, TrialBase
 import os
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from RVM.bases import Animal, Box, ProjectSettings, Trial, TrialBase
+
 
 class TrialManagerDockWidget(QtWidgets.QDockWidget):
     # state colors
@@ -10,6 +13,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         "Good": QtGui.QColor(11, 212, 125),
         "Bad": QtGui.QColor(212, 99, 99),
     }
+
     def __init__(self, projectSettings: ProjectSettings, parent):
         super().__init__(parent)
         self.projectSettings = projectSettings
@@ -64,9 +68,21 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.buttonLayout.addWidget(self.searchBar)
 
         self.treeWidget = QtWidgets.QTreeWidget()
-        self.treeWidget.setHeaderLabels(["Trial ID", "Animal ID", "Box Name", "State", "Start Time", "End Time", "Notes"])
+        self.treeWidget.setHeaderLabels(
+            [
+                "Trial ID",
+                "Animal ID",
+                "Box Name",
+                "State",
+                "Start Time",
+                "End Time",
+                "Notes",
+            ]
+        )
         self.treeWidget.setSortingEnabled(True)
-        self.treeWidget.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        self.treeWidget.setContextMenuPolicy(
+            QtCore.Qt.ContextMenuPolicy.CustomContextMenu
+        )
         self.treeWidget.customContextMenuRequested.connect(self.showContextMenu)
         self.treeWidget.itemDoubleClicked.connect(self.editTrial)
         self.layout.addWidget(self.buttonWidget)
@@ -81,9 +97,13 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             return
         self.contextMenu = QtWidgets.QMenu()
         self.editAction = QtGui.QAction("Edit", self)
-        self.editAction.triggered.connect(lambda: self.editTrial(self.treeWidget.currentItem()))
+        self.editAction.triggered.connect(
+            lambda: self.editTrial(self.treeWidget.currentItem())
+        )
         self.deleteAction = QtGui.QAction("Delete", self)
-        self.deleteAction.triggered.connect(lambda: self.deleteTrial(self.treeWidget.currentItem()))
+        self.deleteAction.triggered.connect(
+            lambda: self.deleteTrial(self.treeWidget.currentItem())
+        )
         self.contextMenu.addAction(self.editAction)
         self.contextMenu.addAction(self.deleteAction)
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
@@ -102,7 +122,9 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         # adjust the color if the state is "Waiting"
         if trial.state == "Running":
             trialItem.setForeground(3, TrialManagerDockWidget.stateColors["Good"])
-        elif trial.state in ["Failed",]:
+        elif trial.state in [
+            "Failed",
+        ]:
             trialItem.setForeground(3, TrialManagerDockWidget.stateColors["Bad"])
         trialItem.setText(4, str(trial.start_time))
         trialItem.setText(5, str(trial.end_time))
@@ -147,13 +169,17 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.updateTrial(trial)
 
     def createTrial(self):
-        self.trialDialog = TrialDialog(self.projectSettings, mainWin=self.parent, parent=self)
+        self.trialDialog = TrialDialog(
+            self.projectSettings, mainWin=self.parent, parent=self
+        )
         self.trialDialog.signals.okClicked.connect(lambda trial: self.addTrial(trial))
         self.trialDialog.exec()
 
     def editTrial(self, trialItem: QtWidgets.QTreeWidgetItem):
         trial = self.projectSettings.getTrialFromId(trialItem.text(0))
-        self.trialDialog = TrialDialog(self.projectSettings, mainWin=self.parent, parent=self)
+        self.trialDialog = TrialDialog(
+            self.projectSettings, mainWin=self.parent, parent=self
+        )
         self.trialDialog.loadTrial(trial)
         self.trialDialog.signals.okClicked.connect(self.updateTrial)
         self.trialDialog.exec()
@@ -167,7 +193,10 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             self.parent.messageBox("Error", "Could not delete box", "Warning")
             return
         self.parent.updateStatus("Deleting Trial {}".format(trial.uid))
-        confim = self.parent.confirmBox("Delete trial", f"Are you sure you want to delete Trial: \n\nID: {trial.uid}")
+        confim = self.parent.confirmBox(
+            "Delete trial",
+            f"Are you sure you want to delete Trial: \n\nID: {trial.uid}",
+        )
         if confim:
             self.projectSettings.trials.remove(trial)
             self.updateTreeWidget()
@@ -176,12 +205,18 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
     def refresh(self):
         self.updateTreeWidget()
 
+
 class TrialDialogSignals(QtCore.QObject):
     okClicked = QtCore.pyqtSignal(TrialBase)
 
-class TrialDialog(QtWidgets.QDialog):
 
-    def __init__(self, projectSettings: ProjectSettings, mainWin: QtWidgets.QMainWindow=None, parent: TrialManagerDockWidget=None):
+class TrialDialog(QtWidgets.QDialog):
+    def __init__(
+        self,
+        projectSettings: ProjectSettings,
+        mainWin: QtWidgets.QMainWindow = None,
+        parent: TrialManagerDockWidget = None,
+    ):
         super().__init__(parent)
         self.projectSettings = projectSettings
         self.signals = TrialDialogSignals()
@@ -201,17 +236,23 @@ class TrialDialog(QtWidgets.QDialog):
 
         # a small icon button to delete in the top left
         self.deleteButton = QtWidgets.QPushButton()
-        self.deleteButton.setIcon(QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "delete.png")))
+        self.deleteButton.setIcon(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "delete.png"))
+        )
         self.deleteButton.clicked.connect(self.deleteTrial)
         self.deleteButton.setStyleSheet("background-color: rgb(212, 99, 99);")
-        self.deleteButton.setSizePolicy(QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
+        self.deleteButton.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum
+        )
         self.formLayout.addWidget(self.deleteButton)
         self.uidLineEdit = QtWidgets.QLineEdit()
         self.uidLineEdit.setReadOnly(True)
         self.uidLineEdit.setEnabled(False)
         self.formLayout.addRow("Trial ID", self.uidLineEdit)
         self.animalComboBox = QtWidgets.QComboBox()
-        self.animalComboBox.addItems([animal.uid for animal in self.projectSettings.animals])
+        self.animalComboBox.addItems(
+            [animal.uid for animal in self.projectSettings.animals]
+        )
         self.formLayout.addRow("Animal ID", self.animalComboBox)
         self.boxComboBox = QtWidgets.QComboBox()
         self.boxComboBox.addItems([box.uid for box in self.projectSettings.boxes])
@@ -230,7 +271,8 @@ class TrialDialog(QtWidgets.QDialog):
 
         self.buttonBox = QtWidgets.QDialogButtonBox()
         self.buttonBox.setStandardButtons(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
         )
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
@@ -263,27 +305,32 @@ class TrialDialog(QtWidgets.QDialog):
         if not ok:
             self.mainWin.messageBox("Error", error, "Critical")
             return
-        
+
         if self.currentTrial is None:
             self.currentTrial = Trial(
-                animal=self.projectSettings.getAnimalFromId(self.animalComboBox.currentText()),
+                animal=self.projectSettings.getAnimalFromId(
+                    self.animalComboBox.currentText()
+                ),
                 box=self.projectSettings.getBoxFromId(self.boxComboBox.currentText()),
                 state=self.stateComboBox.currentText(),
                 start_time=self.startDateTimeEdit.dateTime().toPyDateTime(),
                 end_time=self.endDateTimeEdit.dateTime().toPyDateTime(),
-                notes=self.notesTextEdit.toPlainText()
+                notes=self.notesTextEdit.toPlainText(),
             )
 
         else:
-            self.currentTrial.animal = self.projectSettings.getAnimalFromId(self.animalComboBox.currentText())
-            self.currentTrial.box = self.projectSettings.getBoxFromId(self.boxComboBox.currentText())
+            self.currentTrial.animal = self.projectSettings.getAnimalFromId(
+                self.animalComboBox.currentText()
+            )
+            self.currentTrial.box = self.projectSettings.getBoxFromId(
+                self.boxComboBox.currentText()
+            )
             self.currentTrial.state = self.stateComboBox.currentText()
-            self.currentTrial.start_time = self.startDateTimeEdit.dateTime().toPyDateTime()
+            self.currentTrial.start_time = (
+                self.startDateTimeEdit.dateTime().toPyDateTime()
+            )
             self.currentTrial.end_time = self.endDateTimeEdit.dateTime().toPyDateTime()
             self.currentTrial.notes = self.notesTextEdit.toPlainText()
 
-
         self.signals.okClicked.emit(self.currentTrial)
         super().accept()
-
-

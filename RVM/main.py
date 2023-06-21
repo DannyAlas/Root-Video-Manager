@@ -1,11 +1,13 @@
-from RVM.mainWindow import MainWindow
+import ctypes
 import sys
+
 from PyQt6.QtWidgets import QApplication
 from qdarktheme import setup_theme
-import ctypes
+
+from RVM.mainWindow import MainWindow
 
 if __name__ == "__main__":
-    myappid = u'rootlab.rootvideomanager.v.1'
+    myappid = "rootlab.rootvideomanager.v.1"
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     app = QApplication(sys.argv)
     qss = """
@@ -32,8 +34,7 @@ if __name__ == "__main__":
         font-weight: 600;
     }
     """
-    setup_theme('auto', additional_qss=qss)
+    setup_theme("auto", additional_qss=qss)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
-

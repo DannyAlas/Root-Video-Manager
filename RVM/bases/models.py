@@ -1,7 +1,10 @@
 # the models for the project with helper functions
-from RVM.bases.base import AnimalBase, BoxBase, ProtocalBase, ProjectSettingsBase, TrialBase
-import os
 import json
+import os
+
+from RVM.bases.base import (AnimalBase, BoxBase, ProjectSettingsBase,
+                            ProtocalBase, TrialBase)
+
 
 class ProjectSettings(ProjectSettingsBase):
     """The settings for the project"""
@@ -10,6 +13,13 @@ class ProjectSettings(ProjectSettingsBase):
         super().__init__(**kwargs)
 
     def save(self, dir_path=None):
+        """Save the settings to a json file
+        
+        Parameters
+        ----------
+        dir_path : str, optional
+            The directory to save the file to, by default None. If None, the project location is used, THIS WILL OVERWRITE THE CURRENT PROJECT SETTINGS.
+        """
         if dir_path is None:
             dir_path = self.project_location
         file_name = "settings.json"
@@ -60,17 +70,20 @@ class ProjectSettings(ProjectSettingsBase):
                 return protocol
         return None
 
+
 class Protocol(ProtocalBase):
     """The protocol in the project"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+
 class Animal(AnimalBase):
     """An animal in the project"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
 
 class Box(BoxBase):
     """A box in the project"""
@@ -83,6 +96,7 @@ class Box(BoxBase):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+
 class Trial(TrialBase):
     """A trial in the project"""
 
@@ -93,6 +107,7 @@ class Trial(TrialBase):
         # set our attributes
         for key, value in kwargs.items():
             setattr(self, key, value)
+
     @staticmethod
     def avalible_states():
-        return [x for x in TrialBase.__fields__['state'].type_.__args__]
+        return [x for x in TrialBase.__fields__["state"].type_.__args__]

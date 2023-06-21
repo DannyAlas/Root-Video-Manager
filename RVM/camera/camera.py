@@ -1,23 +1,18 @@
-import cv2
-from PyQt6.QtCore import QObject, pyqtSignal, QMutex, pyqtSlot, QTimer, Qt, QThread
-from PyQt6.QtGui import QImage, QPixmap, QIcon, QAction
-from PyQt6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QLabel,
-    QWidget,
-    QMenuBar,
-    QStatusBar,
-    QVBoxLayout,
-    QToolBar,
-)
-import sys
-import os
-import numpy as np
 import datetime
-from RVM.camera.camThreads import previewer, vidReader, vidWriter
-from typing import List, Dict
+import os
+import sys
 from queue import Queue
+from typing import Dict, List
+
+import cv2
+import numpy as np
+from PyQt6.QtCore import (QMutex, QObject, Qt, QThread, QTimer, pyqtSignal,
+                          pyqtSlot)
+from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
+from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
+                             QStatusBar, QToolBar, QVBoxLayout, QWidget)
+
+from RVM.camera.camThreads import previewer, vidReader, vidWriter
 
 
 class VideoCaptureSignals(QObject):
@@ -191,7 +186,7 @@ class Camera(QObject):
         return self.deviceOpen
 
     def resetVidStats(self) -> None:
-        """reset video stats, to start a new video"""
+        """Reset video stats, to start a new video"""
         self.startTime = 0  # the time when we started the video
         self.timeRec = 0  # how long the video is
         self.framesDropped = 0  # how many frames we've dropped
@@ -208,7 +203,7 @@ class Camera(QObject):
         self.rids = []  # vidReader ids
 
     def startPreview(self) -> None:
-        """start live preview"""
+        """Start live preview"""
         # critFramesToPrev reduces the live display frame rate,
         # so only have to update the display at a comfortable viewing rate.
         # if the camera is at 200 fps, the video will be saved at full rate but
@@ -336,25 +331,19 @@ class Camera(QObject):
             "cameraName": self.camName,
         }
         print(f"Creating video file {fn}")
-        # https://realpython.com/python-pyqt-qthread/
         self.writeThread = QThread()
-        # Step 3: Create a worker object
         self.writeWorker = vidWriter(
             fn, vidvars, self.frames
         )  # creates a new thread to write frames to file
-        # Step 4: Move worker to the thread
+
         self.writeWorker.moveToThread(self.writeThread)
-        # Step 5: Connect signals and slots
         self.writeThread.started.connect(self.writeWorker.run)
         self.writeWorker.signals.finished.connect(self.writeThread.quit)
         self.writeWorker.signals.finished.connect(self.writeWorker.deleteLater)
         self.writeThread.finished.connect(self.writeThread.deleteLater)
-        self.writeWorker.signals.finished.connect(
-            self.doneRecording
-        )  # connects vidWriter status updates to the status display
+        self.writeWorker.signals.finished.connect(self.doneRecording)
         self.writeWorker.signals.progress.connect(self.writingRecording)
         self.writeWorker.signals.error.connect(self.updateStatus)
-        # Step 6: Start the thread
         self.writeThread.start()
 
         self.updateStatus(f"Recording {self.vFilename} ... ", True)
@@ -362,7 +351,18 @@ class Camera(QObject):
         self.startReader()  # this only starts the reader if we're not already previewing
 
     def setFrameRate(self, fps: float) -> int:
-        """Set the frame rate of the camera. Return 0 if value changed, 1 if not"""
+        """Set the frame rate of the camera.
+
+        Parameters
+        ----------
+        fps : float
+            The desired frame rate.
+
+        Returns
+        -------
+        int
+            0 if successful, 1 if not.
+        """
         if self.recording:
             print("Cannot change frame rate while recording.")
             return
@@ -381,7 +381,13 @@ class Camera(QObject):
             return 0
 
     def saveFrame(self, frame: np.ndarray) -> None:
-        """save the frame to the video file. frames are in cv2 format."""
+        """Save the frame to the video file.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            The frame to save
+        """
         if not self.recording:
             return
 
@@ -398,19 +404,19 @@ class Camera(QObject):
             self.totalFrames += 1
 
     def updateFramesToPrev(self):
-        """calculate the number of frames to downsample for preview"""
+        """Calculate the number of frames to downsample for preview"""
         self.critFramesToPrev = max(round(self.fps / self.prevFPS), 1)
         self.framesSincePrev = self.critFramesToPrev
 
     def updatePrevWindow(self, frame: np.ndarray) -> None:
-        """update the display with the new pixmap"""
+        """Update the display with the new pixmap"""
         image = QImage(
             frame, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888
         ).rgbSwapped()
         self.prevWindow.setPixmap(QPixmap.fromImage(image))
 
     def updatePrevFrame(self, frame: np.ndarray) -> None:
-        """update the live preview window"""
+        """Update the live preview window"""
         # update the preview
         if not self.previewing:
             return
@@ -424,7 +430,15 @@ class Camera(QObject):
     @pyqtSlot(np.ndarray, bool)
     # def receiveFrame(self, frame:np.ndarray, frameNum:int, vrid:int, checkDrop:bool=True):
     def receiveRecFrame(self, frame: np.ndarray, pad: bool):
-        """receive a frame from the vidReader thread. pad indicates whether the frame is a filler frame"""
+        """Receive a frame from the vidReader thread.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            The frame to be displayed.
+        pad : bool
+            Whether the frame is a filler frame.
+        """
 
         self.lastFrame = [frame]
         self.saveFrame(frame)  # save to file
@@ -433,11 +447,14 @@ class Camera(QObject):
 
     @pyqtSlot(int)
     def writingRecording(self, fleft: int) -> None:
-        """this function updates the status to say that the video is still being saved.
-        fleft is the number of frames left to record"""
-        # if self.diag>1:
-        #     # if we're in debug mode for this camera, log that we wrote a frame for this camera
-        #     logging.debug(f'{self.cameraName}\twrite\t{fleft}')
+        """Updates the status to say that the video is still being saved.
+
+        Parameters
+        ----------
+        fleft : int
+            Number of frames left to write.
+        """
+
         if not self.recording:
             self.fleft = fleft
             self.updateRecordStatus()
@@ -555,9 +572,10 @@ class CameraWindow(QMainWindow):
 
     i = 0
 
-    def __init__(self, cam: Camera = None, parent=None):
+    def __init__(self, cam: Camera = None, mainWin=None, parent=None):
         super(CameraWindow, self).__init__(parent)
         self.cam = cam
+        self.mainWin = mainWin
 
         if self.cam is None:
             CameraWindow.i += 1
@@ -574,23 +592,17 @@ class CameraWindow(QMainWindow):
         self.cam = Camera(camNum, camName, fps, prevFPS, recFPS, self)
 
     def initUI(self):
-        # set up the menu bar
-        # self.menuBar = QMenuBar(self)
-        # self.fileMenu = self.menuBar.addMenu("&File")
-
         # set up the tool bar
         self.toolBar = QToolBar()
         self.previewButton = QAction(
-            QIcon(r"C:\dev\projects\Root-Video-Manager\RVM\icons\camera.png"),
-            "&Preview",
-            self,
+            QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")), "&Preview", self
         )
         self.previewButton.setEnabled(True)
         self.previewButton.triggered.connect(self.startPreview)
         self.toolBar.addAction(self.previewButton)
 
         self.recordButton = QAction(
-            QIcon(r"C:\dev\projects\Root-Video-Manager\RVM\icons\cam-recorder.png"),
+            QIcon(os.path.join(self.mainWin.iconsDir, "cam-recorder.png")),
             "&Record",
             self,
         )
@@ -599,7 +611,7 @@ class CameraWindow(QMainWindow):
         self.toolBar.addAction(self.recordButton)
 
         self.stopButton = QAction(
-            QIcon(r"C:\dev\projects\Root-Video-Manager\RVM\icons\stop-record.png"),
+            QIcon(os.path.join(self.mainWin.iconsDir, "stop-record.png")),
             "&Stop",
             self,
         )
