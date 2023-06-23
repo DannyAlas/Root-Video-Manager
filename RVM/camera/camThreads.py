@@ -325,3 +325,77 @@ class vidWriter(QObject):
         """stop writing"""
         print("closing writer")
         self.kill = True
+
+class vidAnalysisSignals(QObject):
+    finished = pyqtSignal()
+    error = pyqtSignal(str, bool)
+    frame = pyqtSignal(np.ndarray, bool)
+
+class vidAnalysis(QObject):
+    """
+    This is an analysis object that takes in a video file and handles playback. Simmilar to the previewer but with methods for seeking, frame by frame playback, etc.
+    """
+    def __init__(self, fn: str, vidvars: dict = None):
+        super(vidAnalysis, self).__init__()
+        self.vFilename = fn
+        self.recFPS = 30
+        self.recSPF = 1 / self.recFPS
+        self.vw = cv2.VideoCapture(fn)
+        self.signals = vidAnalysisSignals()
+        self.kill = False
+        self.readFrames = 0  # total number of frames read
+        self.mspf = 1000 / self.recFPS
+
+    def seek(self, frame: int):
+        """seek to a frame"""
+        self.vw.set(cv2.CAP_PROP_POS_FRAMES, frame)
+
+    @pyqtSlot()
+    def run(self) -> None:
+        """Run this function when this thread is started. Collect a frame and return to the gui"""
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.loop)
+        self.timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self.timer.start(int(self.mspf))
+        self.timerRunning = True
+
+    def loop(self):
+        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording
+        """
+        try:
+            frame = self.readFrame()
+            if frame is None:
+                return
+            self.sendFrame(frame, False)
+        except Exception as e:
+            self.signals.error.emit(f"Error collecting frame: {e}", True)
+            return
+
+    @pyqtSlot()
+    def readFrame(self) -> np.ndarray:
+        """read a frame from the video"""
+        try:
+            ret, frame = self.vw.read()
+            if not ret:
+                self.signals.finished.emit()
+                return None
+            self.readFrames += 1
+        except Exception as e:
+            self.signals.error.emit(f"Error collecting frame: {e}", True)
+            return None
+        else:
+            return frame        
+
+    def sendFrame(self, frame: np.ndarray, pad: bool):
+        """send a frame to the GUI"""
+        if frame is None:
+            return
+
+        self.signals.frame.emit(
+            frame, pad
+        )  # send the frame back to be displayed and recorded
+
+    def sendNewFrame(self, frame):
+        """send a new frame back to the GUI"""
+        self.sendFrame(frame, False)

@@ -5,7 +5,7 @@ from bases import ProjectSettings
 from capture_devices import devices
 from PyQt6 import QtCore, QtGui, QtWidgets
 from widgets import (AnimalManagerDockWidget, BoxManagerDockWidget,
-                     ProtocolManagerDockWidget, TrialManagerDockWidget)
+                     ProtocolManagerDockWidget, TrialManagerDockWidget, VideoScoringWidget)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -219,6 +219,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(
             QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget
         )
+        # w.i.p. video scoring widget
+        # self.videoScoringWidget = VideoScoringWidget(mainWin=self, parent=self)
+        # self.viewMenu.addAction(self.videoScoringWidget.toggleViewAction())
+        # self.videoScoringWidget.show()
+        
 
     def protocolChanged(self, text):
         # call the refresh method on the dock widgets

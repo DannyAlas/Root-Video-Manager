@@ -566,8 +566,10 @@ class Camera(QObject):
 
 class CameraWindow(QMainWindow):
     """
-    A camera window for displaying the live preview and recording videos. Contains a Camera object, status bar, and menu bar.
+    DEPRECATED
+    TODO: remove this class and replace with a more robust widget.
 
+    A temporary class for a basic camera window responisble for displaying the live preview and recording videos. Contains a Camera object, status bar, and menu bar. This class is temporary and will be replaced by a more robust widget.
     """
 
     i = 0

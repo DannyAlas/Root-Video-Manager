@@ -4,3 +4,4 @@ Include/
 Lib/
 windows_capture*/
 ffmpeg-master*/
+*.cfg
