@@ -132,6 +132,23 @@ class Camera(QObject):
 
     Frames are read by a separate thread, and stored in a queue. The queue is read by the preview thread and the recording thread AND ONLY CLEARED BY THE RECORDING THREAD.
 
+    Parameters
+    ----------
+    camNum : int
+        The camera number, as returned by cv2.VideoCapture(camNum)
+    camName : str
+        The camera name, as returned by cv2.VideoCapture(camNum)
+    saveFolder : str
+        The folder where videos are saved
+    fps : int
+        The frame rate of the camera
+    prevFPS : int
+        The frame rate of the preview
+    recFPS : int
+        The frame rate of the recording
+    guiWin : QMainWindow
+        The main window of the GUI
+
     Note
     ----
     - Reading frames from a webcam is a blocking operation, so we need to run it in a separate thread.
@@ -143,6 +160,7 @@ class Camera(QObject):
         self,
         camNum: int,
         camName: str,
+        saveFolder: str,
         fps: int,
         prevFPS: int,
         recFPS: int,
@@ -170,8 +188,10 @@ class Camera(QObject):
         self.fourcc = cv2.VideoWriter_fourcc("M", "J", "P", "G")
         self.mspf = int(round(1000.0 / self.fps))
 
-        self.saveFolder = os.path.join(os.path.expanduser("~"), "Desktop")
-
+        if not os.path.isdir(saveFolder):
+            self.saveFolder = os.path.join(os.path.expanduser("~"), "Desktop")
+        else:
+            self.saveFolder = saveFolder
         self.resetVidStats()
 
         self.vc = None
