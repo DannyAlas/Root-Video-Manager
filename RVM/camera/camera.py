@@ -205,6 +205,8 @@ class Camera(QObject):
         self.boxId = boxId
         self.animalId = animalId
 
+        self.fileName = None
+
         self.readerRunning = False
         self.prevRunning = False
         self.previewing = False
@@ -337,7 +339,6 @@ class Camera(QObject):
             self.prevWorker.signals.frame.connect(self.receivePrevFrame)
             self.prevWorker.signals.progress.connect(self.printDiagnostics)
             self.prevThread.start()
-            print("starting previewer")
 
     def getFilename(self) -> str:
         """determine the file name for the file we're about to record."""
@@ -370,6 +371,9 @@ class Camera(QObject):
 
     def createWriter(self) -> None:
         """create a videoWriter object"""
+        if self.fileName is None:
+            raise ValueError("No filename specified")
+
         self.writeWarning = False
         self.recording = True
         self.writing = True
@@ -378,8 +382,6 @@ class Camera(QObject):
         self.vc.writing = True
         self.vc.unlock()
         self.resetVidStats()  # this resets the frame list, and other vars
-        fn = self.getFilename()  # generate a new file name for this video
-        self.vFilename = fn
         vidvars = {
             "fourcc": self.fourcc,
             "fps": self.fps,
@@ -388,10 +390,9 @@ class Camera(QObject):
             "imh": self.vc.imh,
             "cameraName": self.camName,
         }
-        print(f"Creating video file {fn}")
         self.writeThread = QThread()
         self.writeWorker = vidWriter(
-            fn, vidvars, self.frames
+            self.fileName, vidvars, self.frames
         )  # creates a new thread to write frames to file
 
         self.writeWorker.moveToThread(self.writeThread)
@@ -404,7 +405,7 @@ class Camera(QObject):
         self.writeWorker.signals.error.connect(self.updateStatus)
         self.writeThread.start()
 
-        self.updateStatus(f"Recording {self.vFilename} ... ", True)
+        self.updateStatus(f"Recording {self.fileName} ... ", True)
         # QThreadPool.globalInstance().start(recthread)          # start writing in a background thread
         self.startReader()  # this only starts the reader if we're not already previewing
 
@@ -593,7 +594,7 @@ class Camera(QObject):
             s = "Recorded "
             log = True
         saveFreq = int(round(self.fps / self.recFPS))
-        s += f"{self.vFilename} {self.timeRec:2.2f} s, "
+        s += f"{self.fileName} {self.timeRec:2.2f} s, "
         if self.writing and not self.recording:
             s += f"{int(np.floor(self.fleft/saveFreq))}/{int(np.floor(self.totalFrames/saveFreq))} frames left"
         else:

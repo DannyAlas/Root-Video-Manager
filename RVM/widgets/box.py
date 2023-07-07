@@ -6,7 +6,7 @@ import os
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from RVM.bases import Box, BoxBase, ProjectSettings, Protocol
-
+from RVM.widgets.camWin import CameraPreviewWindow
 class BoxManagerDockWidgetSignals(QtCore.QObject):
     boxCreated = QtCore.pyqtSignal(Box)
     boxDeleted = QtCore.pyqtSignal(Box)
@@ -416,7 +416,26 @@ class BoxDialog(QtWidgets.QDialog):
 
     def preview(self):
         """DEPRECATED"""
-        pass
+        self.cameraPreviewWindow = CameraPreviewWindow(
+            parent=self.mainWin, mainWin=self.mainWin
+        )
+        box = self.projectSettings.getBoxFromId(self.boxIdLineEdit.text())
+        if box is None:
+            self.mainWin.messageBox(title="ERROR", text="Box not Found", severity="Critical")
+            return
+        try:
+            camera = self.mainWin.videoDevices[box.camera]
+        except Exception as e:
+            self.mainWin.messageBox(title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical")
+            return
+        self.cameraPreviewWindow.createCamera(
+            camNum=list(self.mainWin.videoDevices.values()).index(camera),
+            camName=camera,
+            fps=30,
+            prevFPS=30,
+            recFPS=30,
+        )
+        self.cameraPreviewWindow.show()
 
     def loadBox(self, box: Box):
         self.currentBox = box

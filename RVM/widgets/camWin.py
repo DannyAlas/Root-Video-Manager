@@ -39,17 +39,17 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
 
     def initUI(self):
         # set up the tool bar
-        self.toolBar = QtWidgets.QToolBar()
-        self.previewButton = QtGui.QAction(
-            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")),
-            "&Preview",
-            self,
-        )
-        self.previewButton.setEnabled(True)
-        self.previewButton.triggered.connect(self.startPreview)
-        self.toolBar.addAction(self.previewButton)
+        # self.toolBar = QtWidgets.QToolBar()
+        # self.previewButton = QtGui.QAction(
+        #     QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")),
+        #     "&Preview",
+        #     self,
+        # )
+        # self.previewButton.setEnabled(True)
+        # self.previewButton.triggered.connect(self.startPreview)
+        # self.toolBar.addAction(self.previewButton)
 
-        self.addToolBar(self.toolBar)
+        # self.addToolBar(self.toolBar)
 
         # set up the status bar
         self.statusBar = QtWidgets.QStatusBar(self)
@@ -231,8 +231,6 @@ class CameraWindow(QtWidgets.QMainWindow):
 
     def startRecording(self):
         """save the video"""
-        # update file name incase the project has changed
-        self.cam.getFilename()
         self.cam.startRecording()
         self.recordButton.setEnabled(False)
         self.stopButton.setEnabled(True)

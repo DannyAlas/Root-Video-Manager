@@ -3,9 +3,9 @@
 import os
 
 from PyQt6 import QtCore, QtGui, QtWidgets
-
+import datetime
 from RVM.bases import Animal, Box, ProjectSettings, Trial, TrialBase
-
+from RVM.widgets.camWin import CameraPreviewWindow, CameraWindowDockWidget, CameraWindow
 
 class TrialManagerDockWidget(QtWidgets.QDockWidget):
     # state colors
@@ -57,8 +57,32 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         )
         self.deleteTrialButton.clicked.connect(self.deleteTrial)
 
+        self.runSelectedButton = QtWidgets.QToolButton()
+        self.runSelectedButton.setText("Run Selected")
+        self.runSelectedButton.setToolTip("Run the selected trials")
+        self.runSelectedButton.setIcon(
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "play-button.png"))
+        )
+        self.runSelectedButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.runSelectedButton.clicked.connect(self.openRunDialog)
+
+        self.stopAllButton = QtWidgets.QToolButton()
+        self.stopAllButton.setText("Stop All")
+        self.stopAllButton.setToolTip("Stop all running trials")
+        self.stopAllButton.setIcon(
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "stop.png"))
+        )
+        self.stopAllButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.stopAllButton.clicked.connect(self.stopTrials)
+    
         self.buttonLayout.addWidget(self.createTrialButton)
         self.buttonLayout.addWidget(self.deleteTrialButton)
+        self.buttonLayout.addWidget(self.runSelectedButton)
+        self.buttonLayout.addWidget(self.stopAllButton)
         self.buttonLayout.addStretch(1)
 
         # a search bar for the tree widget
@@ -72,7 +96,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             [
                 "Trial ID",
                 "Animal ID",
-                "Box Name",
+                "Box ID",
                 "State",
                 "Start Time",
                 "End Time",
@@ -80,6 +104,9 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             ]
         )
         self.treeWidget.setSortingEnabled(True)
+        self.treeWidget.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
+        )
         self.treeWidget.setContextMenuPolicy(
             QtCore.Qt.ContextMenuPolicy.CustomContextMenu
         )
@@ -100,11 +127,16 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.editAction.triggered.connect(
             lambda: self.editTrial(self.treeWidget.currentItem())
         )
+        self.previewAction = QtGui.QAction("Preview", self)
+        self.previewAction.triggered.connect(
+            lambda: self.previewTrial(self.treeWidget.currentItem())
+        )
         self.deleteAction = QtGui.QAction("Delete", self)
         self.deleteAction.triggered.connect(
             lambda: self.deleteTrial(self.treeWidget.currentItem())
         )
         self.contextMenu.addAction(self.editAction)
+        self.contextMenu.addAction(self.previewAction)
         self.contextMenu.addAction(self.deleteAction)
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
 
@@ -169,7 +201,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.updateTrial(trial)
 
     def createTrial(self):
-        self.trialDialog = TrialDialog(
+        self.trialDialog = TrialEditDialog(
             self.projectSettings, mainWin=self.parent, parent=self
         )
         self.trialDialog.signals.okClicked.connect(lambda trial: self.addTrial(trial))
@@ -177,7 +209,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
 
     def editTrial(self, trialItem: QtWidgets.QTreeWidgetItem):
         trial = self.projectSettings.getTrialFromId(trialItem.text(0))
-        self.trialDialog = TrialDialog(
+        self.trialDialog = TrialEditDialog(
             self.projectSettings, mainWin=self.parent, parent=self
         )
         self.trialDialog.loadTrial(trial)
@@ -202,15 +234,123 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             self.updateTreeWidget()
             self.parent.updateStatus("Trial {} deleted".format(trial.uid))
 
+    def previewTrial(self, item):
+        if type(item) == QtWidgets.QTreeWidgetItem:
+            trial = self.projectSettings.getTrialFromId(item.text(0))
+        elif type(item) == Trial or type(item) == TrialBase:
+            trial = item
+        else:
+            self.parent.messageBox("Error", "Could not preview trial", "Warning")
+            return
+
+        if trial.state != "Running":
+            self.parent.updateStatus("Previewing Trial {}".format(trial.uid))
+            self.cameraPreviewWindow = CameraPreviewWindow(
+                parent=self.parent, mainWin=self.parent
+            )
+            self.cameraPreviewWindow.createCamera(
+                camNum=list(self.parent.videoDevices.keys()).index(trial.box.camera),
+                camName=self.parent.videoDevices[trial.box.camera],
+                fps=30,
+                prevFPS=30,
+                recFPS=30,
+            )
+            self.cameraPreviewWindow.show()
+        else:
+            self.parent.messageBox(
+                "Error", "Cannot preview a running trial", "Warning"
+            )
+
+    def getVideoFilename(self, trial: Trial):
+        return str(os.path.join(
+            self.projectSettings.project_location,
+            "videos",
+            f"{trial.animal.uid}_BOX{trial.box.uid}_{trial.uid}.avi",
+        ))
+
+    def runTrials(self, trial_camera_dws: dict[str, CameraWindowDockWidget]):
+        for trial_uid, dw in trial_camera_dws.items():
+            trial = self.projectSettings.getTrialFromId(trial_uid)
+            trial.video_location = self.getVideoFilename(trial)
+            dw.cameraWindow.cam.fileName = trial.video_location
+            dw.cameraWindow.startRecording()
+            trial.start_time = datetime.datetime.now()
+            trial.state = "Running"
+            self.updateTrial(trial)
+
+        self.parent.updateStatus("Running Trials")
+        self.runDialog.close()
+        self.runDialog = None
+
+    def stopTrials(self):
+        runningTrials = []
+        for trial in self.projectSettings.trials:
+            if trial.state == "Running":
+                runningTrials.append(trial)
+        for trial in runningTrials:
+            trial.state = "Finished"
+            trial.end_time = datetime.datetime.now()
+            self.updateTrial(trial)
+        for dockWidget in self.parent.findChildren(CameraWindowDockWidget):
+            dockWidget.cameraWindow.stopRecording()
+
+        self.parent.updateStatus("Stopped Trials")
+
+    def openRunDialog(self):        
+        # get the selected trials
+        selectedTrials = []
+        for item in self.treeWidget.selectedItems():
+            trial = self.projectSettings.getTrialFromId(item.text(0))
+            if trial.state == "Waiting":
+                selectedTrials.append(trial)
+
+        # create the run dialog
+        self.runDialog = RunTrialsDialog(
+            trials=selectedTrials, projectSettings=self.projectSettings, mainWin=self.parent, parent=self
+        )
+        self.runDialog.signals.okClicked.connect(self.runTrials)
+        self.runDialog.exec()
+
+    def addCameraDockWidget(
+        self, cameraWindow, boxId: int, animalId: str
+    ):
+        cameraWindow: CameraWindow
+        msg_str = None
+        for dockWidget in self.parent.findChildren(CameraWindowDockWidget):
+            if dockWidget.boxId == boxId:
+                msg_str = f"A camera with the BOX ID of {boxId} already exists. Please choose a different box id."
+            elif dockWidget.animalId == animalId:
+                msg_str = f"A camera with the ANIMAL ID {animalId} already exists. Please choose a different animal id."
+
+        if msg_str is not None:
+            self.messageBox(title="ERROR", text=msg_str, severity="Critical")
+            return
+
+        # wrap the camera window in a dock widget
+        dockWidget = CameraWindowDockWidget(
+            cameraWindow=cameraWindow,
+            boxId=boxId,
+            animalId=animalId,
+            fps=30,
+            recFPS=30,
+            prevFPS=30,
+            parent=self.parent,
+        )
+        # add the dock widget to the main window
+        self.parent.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, dockWidget)
+        dockWidget.cameraWindow.startPreview()
+        # add the dock widget to the view menu
+        self.parent.addAction(dockWidget.toggleViewAction())
+        return dockWidget
+
     def refresh(self):
         self.updateTreeWidget()
 
 
-class TrialDialogSignals(QtCore.QObject):
+class TrialEditDialogSignals(QtCore.QObject):
     okClicked = QtCore.pyqtSignal(TrialBase)
 
-
-class TrialDialog(QtWidgets.QDialog):
+class TrialEditDialog(QtWidgets.QDialog):
     def __init__(
         self,
         projectSettings: ProjectSettings,
@@ -219,7 +359,7 @@ class TrialDialog(QtWidgets.QDialog):
     ):
         super().__init__(parent)
         self.projectSettings = projectSettings
-        self.signals = TrialDialogSignals()
+        self.signals = TrialEditDialogSignals()
         self.currentTrial = None
         self.parent = parent
         self.mainWin = mainWin
@@ -256,7 +396,7 @@ class TrialDialog(QtWidgets.QDialog):
         self.formLayout.addRow("Animal ID", self.animalComboBox)
         self.boxComboBox = QtWidgets.QComboBox()
         self.boxComboBox.addItems([box.uid for box in self.projectSettings.boxes])
-        self.formLayout.addRow("Box Name", self.boxComboBox)
+        self.formLayout.addRow("Box ID", self.boxComboBox)
         self.stateComboBox = QtWidgets.QComboBox()
         self.stateComboBox.addItems(Trial.avalible_states())
         self.formLayout.addRow("State", self.stateComboBox)
@@ -266,6 +406,13 @@ class TrialDialog(QtWidgets.QDialog):
         self.endDateTimeEdit = QtWidgets.QDateTimeEdit(calendarPopup=True)
         self.endDateTimeEdit.setDateTime(QtCore.QDateTime.currentDateTime())
         self.formLayout.addRow("End Time", self.endDateTimeEdit)
+        self.videoLocationLineEdit = QtWidgets.QLineEdit()
+        self.videoLocationLineEdit.setReadOnly(True)
+        self.videoLocationLineEdit.setEnabled(False)
+        self.formLayout.addRow("Video Location", self.videoLocationLineEdit)
+        self.openVideoLocationButton = QtWidgets.QPushButton("Open")
+        self.openVideoLocationButton.clicked.connect(self.openVideoLocation)
+        self.formLayout.addRow("", self.openVideoLocationButton)
         self.notesTextEdit = QtWidgets.QTextEdit()
         self.formLayout.addRow("Notes", self.notesTextEdit)
 
@@ -287,7 +434,19 @@ class TrialDialog(QtWidgets.QDialog):
         self.stateComboBox.setCurrentText(trial.state)
         self.startDateTimeEdit.setDateTime(trial.start_time)
         self.endDateTimeEdit.setDateTime(trial.end_time)
+        self.videoLocationLineEdit.setText(str(trial.video_location))
         self.notesTextEdit.setText(trial.notes)
+
+    def openVideoLocation(self):
+        if self.currentTrial is None:
+            return
+        if self.currentTrial.video_location is None:
+            return
+        if not os.path.exists(self.currentTrial.video_location):
+            return
+        # open file location
+        import subprocess
+        subprocess.Popen(r'explorer /select,"{}"'.format(self.currentTrial.video_location))
 
     def deleteTrial(self):
         if self.currentTrial is None:
@@ -334,3 +493,148 @@ class TrialDialog(QtWidgets.QDialog):
 
         self.signals.okClicked.emit(self.currentTrial)
         super().accept()
+
+class RunTrialsDialogSignals(QtCore.QObject):
+    okClicked = QtCore.pyqtSignal(dict)
+
+class RunTrialsDialog(QtWidgets.QDialog):
+    def __init__(
+        self,
+        trials: list[TrialBase],
+        projectSettings: ProjectSettings,
+        mainWin: QtWidgets.QMainWindow = None,
+        parent: TrialManagerDockWidget = None,
+    ):
+        super().__init__(parent)
+        self.trials = trials
+        self.projectSettings = projectSettings
+        self.signals = RunTrialsDialogSignals()
+        self.currentTrial = None
+        self.parent = parent
+        self.mainWin = mainWin
+        self.initUi()
+
+    def initUi(self):
+        # will display a list of the trials with checkboxes and a button to open all the cameras and then a button to start the trials
+        self.setWindowTitle("Run Trials")
+
+        self.layout = QtWidgets.QGridLayout()
+        self.setLayout(self.layout)
+
+        # a label for the trials table
+        self.trialsLabel = QtWidgets.QLabel("Run Trials:")
+
+        # a table to display the trials
+        self.trialsTable = QtWidgets.QTableWidget()
+        self.trialsTable.setColumnCount(3)
+        self.trialsTable.setHorizontalHeaderLabels(
+            ["Trial ID", "Animal ID", "Box ID"]
+        )
+        self.trialsTable.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.NoSelection
+        )
+        self.trialsTable.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+
+        # a button to start the trials
+        self.startTrialsButton = QtWidgets.QPushButton("Start Trials")
+        # set the color of the button to QtGui.QColor(212, 99, 99)
+        self.startTrialsButton.setStyleSheet(
+            "background-color: rgb(212, 99, 99); color: rgb(255, 255, 255);"
+        )
+        self.startTrialsButton.clicked.connect(self.startTrials)
+
+        # add the widgets to the layout
+        self.layout.addWidget(self.trialsLabel, 0, 0, 1, 2)
+        self.layout.addWidget(self.trialsTable, 1, 0, 1, 2)
+        self.layout.addWidget(self.startTrialsButton, 2, 0, 1, 2)
+
+        # populate the table
+        self.populateTable()
+
+    def populateTable(self):
+        self.trialsTable.setRowCount(len(self.trials))
+        for i, trial in enumerate(self.trials):
+            self.trialsTable.setItem(i, 0, QtWidgets.QTableWidgetItem(trial.uid))
+            self.trialsTable.setItem(
+                i, 1, QtWidgets.QTableWidgetItem(trial.animal.uid)
+            )
+            self.trialsTable.setItem(i, 2, QtWidgets.QTableWidgetItem(trial.box.uid))
+        # run validation on the table
+        ok, error_type, errored_item_ids = self.validateTrials()
+        if not ok:
+            self.startTrialsButton.setEnabled(False)
+            self.startTrialsButton.setStyleSheet(
+                "background-color: rgb(70, 70, 70); color: rgb(255, 255, 255);"
+            )
+            # highlight the errored items
+            for i in range(self.trialsTable.rowCount()):
+                if self.trialsTable.item(i, 1).text() in errored_item_ids:
+                    self.trialsTable.item(i, 1).setBackground(
+                        QtGui.QColor(212, 99, 99)
+                    )
+                    # add the tooltip
+                    self.trialsTable.item(i, 1).setToolTip(
+                        "This animal is used in more than one trial."
+                    )
+            for i in range(self.trialsTable.rowCount()):
+                if self.trialsTable.item(i, 2).text() in errored_item_ids:
+                    self.trialsTable.item(i, 2).setBackground(
+                        QtGui.QColor(212, 99, 99)
+                    )
+                    # add the tooltip
+                    self.trialsTable.item(i, 2).setToolTip(
+                        "This box is used in more than one trial."
+                    )
+        # resize the dialog to fit the table
+        self.resize(self.trialsTable.sizeHint().width() + 100, self.sizeHint().height())
+        
+    def validateTrials(self):
+        animals = []
+        errored_animals = []
+        for trial in self.trials:
+            animals.append(trial.animal.uid)
+        for animal in animals:
+            if animals.count(animal) > 1:
+                errored_animals.append(animal)
+        boxes = []
+        errored_boxes = []
+        for trial in self.trials:
+            boxes.append(trial.box.uid)
+        for box in boxes:
+            if boxes.count(box) > 1:
+                errored_boxes.append(box)
+
+        if len(errored_animals) > 0 and len(errored_boxes) > 0:
+            return False, "Animals and Boxes", errored_animals + errored_boxes
+        elif len(errored_animals) > 0:
+            return False, "Animals", errored_animals
+        elif len(errored_boxes) > 0:
+            return False, "Boxes", errored_boxes
+        return True, "", []
+        
+    def openCameras(self):
+        trial_camera_dws = {}
+        for trial in self.trials:
+            # create a new camera window
+            try:
+                cameraWindow = CameraWindow(
+                    parent=self.mainWin,
+                    camNum=list(self.mainWin.videoDevices.keys()).index(trial.box.camera),
+                    mainWin=self.mainWin,
+                    boxId=trial.box.uid,
+                    animalId=trial.animal.uid,
+                )
+                dw = self.parent.addCameraDockWidget(cameraWindow, trial.box.uid, trial.animal.uid)
+                trial_camera_dws[trial.uid] = dw
+                cameraWindow.show()
+            except Exception as e:
+                self.mainWin.messageBox("Error", str(e), "Critical")
+                return
+        return trial_camera_dws
+    
+    def startTrials(self):
+        trial_camera_dws = self.openCameras()
+        self.signals.okClicked.emit(trial_camera_dws)
+        self.accept()
