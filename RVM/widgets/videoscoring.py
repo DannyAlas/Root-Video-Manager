@@ -10,21 +10,29 @@ TODO: create a mutex that will hold the cv2 capture and helper methods (i.e. a m
 """
 
 import os
-from PyQt6 import QtCore, QtGui, QtWidgets 
-from RVM.camera import CameraWindow, Camera
+from PyQt6 import QtCore, QtGui, QtWidgets
 from RVM.camera.camThreads import vidAnalysis, vidReader, previewer
 import numpy as np
-from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
-                             QStatusBar, QToolBar, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QStatusBar,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtCore import (QMutex, QObject, Qt, QThread, QTimer, pyqtSignal,
-                          pyqtSlot)
+from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 import cv2
 import datetime
 
+
 class videoPlayerSignals(QObject):
     frame = pyqtSignal(np.ndarray)
-    
+
+
 class videoPlayer(QObject):
     """thread for playing videos"""
 
@@ -83,7 +91,7 @@ class videoPlayer(QObject):
             # read the frame
             frame = self.vc.read()[1]
             # increment the frame count
-            self.frameCount = self.frameCount + self.frameCountStep            
+            self.frameCount = self.frameCount + self.frameCountStep
         except Exception as e:
             if len(str(e)) > 0:
                 print(f"Error collecting frame: {e}", True)
@@ -104,8 +112,11 @@ class videoPlayer(QObject):
         if self.frameCount > self.frameCountMax:
             self.frameCount = self.frameCountMax
 
-        assert self.frameCount >= self.frameCountMin and self.frameCount <= self.frameCountMax, "frame count out of bounds"
-        
+        assert (
+            self.frameCount >= self.frameCountMin
+            and self.frameCount <= self.frameCountMax
+        ), "frame count out of bounds"
+
         self.vc.set(cv2.CAP_PROP_POS_FRAMES, self.frameCount)
         frame = self.readFrame()
         if frame is not None:
@@ -114,7 +125,7 @@ class videoPlayer(QObject):
     def sendFrame(self, frame):
         """send the frame to the gui"""
         self.signals.frame.emit(frame)
-        
+
     def stop(self):
         """stop the thread"""
         if hasattr(self, "timer") and self.timer.isActive():
@@ -124,8 +135,6 @@ class videoPlayer(QObject):
         self.vc.release()
 
 
-        
-
 class VideoScoringWidget(QtWidgets.QMainWindow):
     """widget for scoring videos"""
 
@@ -134,7 +143,9 @@ class VideoScoringWidget(QtWidgets.QMainWindow):
         self.mainWin = mainWin
         self.playerThread = None
         self.setWindowTitle("Video Scoring")
-        self.setWindowIcon(QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "..", "logo.png")))
+        self.setWindowIcon(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "..", "logo.png"))
+        )
         # central widget is a Qlabel
         self.prevWindow = QtWidgets.QLabel()
         self.prevWindow.setScaledContents(True)
@@ -148,9 +159,14 @@ class VideoScoringWidget(QtWidgets.QMainWindow):
         self.centralWidget.setLayout(QtWidgets.QVBoxLayout())
         self.centralWidget.layout().addWidget(self.prevWindow)
 
-        self.cap = cv2.VideoCapture(r"H:\D-E mice Recording Backup\FiPho-230208\d91\FiPho-230208_d91_Cam1.avi")
+        self.cap = cv2.VideoCapture(
+            r"H:\D-E mice Recording Backup\FiPho-230208\d91\FiPho-230208_d91_Cam1.avi"
+        )
         self.playerWorker = videoPlayer(self.cap, fps=self.cap.get(cv2.CAP_PROP_FPS))
-        self.resize(int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        self.resize(
+            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
         # play button
         self.played = False
         self.playButton = QtWidgets.QPushButton("Play")

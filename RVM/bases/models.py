@@ -2,8 +2,13 @@
 import json
 import os
 
-from RVM.bases.base import (AnimalBase, BoxBase, ProjectSettingsBase,
-                            ProtocalBase, TrialBase)
+from RVM.bases.base import (
+    AnimalBase,
+    BoxBase,
+    ProjectSettingsBase,
+    ProtocalBase,
+    TrialBase,
+)
 
 
 class ProjectSettings(ProjectSettingsBase):
@@ -14,7 +19,7 @@ class ProjectSettings(ProjectSettingsBase):
 
     def save(self, dir_path=None):
         """Save the settings to a json file
-        
+
         Parameters
         ----------
         dir_path : str, optional

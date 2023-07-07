@@ -33,6 +33,21 @@ if __name__ == "__main__":
         font-size: 15px;
         font-weight: 600;
     }
+    QSpinBox {
+        height: 30px;
+        font-size: 15;
+        font-weight: 400;
+    }
+    QLineEdit {
+        height: 30px;
+        font-size: 15px;
+        font-weight: 400;
+    }
+    QComboBox {
+        height: 30px;
+        font-size: 15;
+        font-weight: 400;
+    }
     """
     setup_theme("auto", additional_qss=qss)
     window = MainWindow()

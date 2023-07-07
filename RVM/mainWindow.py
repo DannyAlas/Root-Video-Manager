@@ -4,8 +4,7 @@ from typing import Literal
 from bases import ProjectSettings
 from capture_devices import devices
 from PyQt6 import QtCore, QtGui, QtWidgets
-from widgets import (AnimalManagerDockWidget, BoxManagerDockWidget,
-                     ProtocolManagerDockWidget, TrialManagerDockWidget, VideoScoringWidget)
+from widgets import *
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -14,7 +13,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Root Video Manager")
         self.qtsettings = QtCore.QSettings("RVM", "RVM")
         self.projectSettings = ProjectSettings()
-        self.dockWidgets = []
 
         self.iconsDir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "icons", "dark"
@@ -140,19 +138,76 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.toolbar.addWidget(self.saveProjectButton)
 
-        # add a combobox and add button next to it for protocols
-        self.protocolComboBox = QtWidgets.QComboBox()
-        for protocol in self.projectSettings.protocols:
-            self.protocolComboBox.addItem(protocol.uid)
-        self.protocolComboBox.currentTextChanged.connect(self.protocolChanged)
-        self.toolbar.addWidget(self.protocolComboBox)
-        self.addProtocolButton = QtWidgets.QToolButton()
-        self.addProtocolButton.clicked.connect(self.addProtocol)
-        self.addProtocolButton.setToolTip("Add a new protocol")
-        self.addProtocolButton.setIcon(
+        # add vertical spacer
+        spacer = QtWidgets.QWidget()
+        spacer.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+        self.toolbar.addWidget(spacer)
+
+        # add button for CreateCameraDialog
+        self.addCameraButton = QtWidgets.QToolButton()
+        self.addCameraButton.clicked.connect(self.OpenCreateCameraDialog)
+        self.addCameraButton.setToolTip("Add a new camera")
+        self.addCameraButton.setIcon(
             QtGui.QIcon(os.path.join(self.iconsDir, "add.png"))
         )
-        self.toolbar.addWidget(self.addProtocolButton)
+        self.addCameraButton.setText("Add Camera")
+        self.addCameraButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.toolbar.addWidget(self.addCameraButton)
+
+        self.previewAllCamerasButton = QtWidgets.QToolButton()
+        self.previewAllCamerasButton.clicked.connect(self.previewAllCameras)
+        self.previewAllCamerasButton.setToolTip("Preview all cameras")
+        self.previewAllCamerasButton.setIcon(
+            QtGui.QIcon(os.path.join(self.iconsDir, "camera.png"))
+        )
+        self.previewAllCamerasButton.setText("Preview All")
+        self.previewAllCamerasButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.toolbar.addWidget(self.previewAllCamerasButton)
+
+        self.recordAllCamerasButton = QtWidgets.QToolButton()
+        self.recordAllCamerasButton.clicked.connect(self.recordAllCameras)
+        self.recordAllCamerasButton.setToolTip("Record all cameras")
+        self.recordAllCamerasButton.setIcon(
+            QtGui.QIcon(os.path.join(self.iconsDir, "cam-recorder.png"))
+        )
+        self.recordAllCamerasButton.setText("Record All")
+        self.recordAllCamerasButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.toolbar.addWidget(self.recordAllCamerasButton)
+
+        self.stopAllCamerasButton = QtWidgets.QToolButton()
+        self.stopAllCamerasButton.clicked.connect(self.stopAllCameras)
+        self.stopAllCamerasButton.setToolTip("Stop all cameras")
+        self.stopAllCamerasButton.setIcon(
+            QtGui.QIcon(os.path.join(self.iconsDir, "stop-record.png"))
+        )
+        self.stopAllCamerasButton.setText("Stop All")
+        self.stopAllCamerasButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.toolbar.addWidget(self.stopAllCamerasButton)
+
+        # add a combobox and add button next to it for protocols
+        # self.protocolComboBox = QtWidgets.QComboBox()
+        # for protocol in self.projectSettings.protocols:
+        #     self.protocolComboBox.addItem(protocol.uid)
+        # self.protocolComboBox.currentTextChanged.connect(self.protocolChanged)
+        # self.toolbar.addWidget(self.protocolComboBox)
+        # self.addProtocolButton = QtWidgets.QToolButton()
+        # self.addProtocolButton.clicked.connect(self.addProtocol)
+        # self.addProtocolButton.setToolTip("Add a new protocol")
+        # self.addProtocolButton.setIcon(
+        #     QtGui.QIcon(os.path.join(self.iconsDir, "add.png"))
+        # )
+        # self.toolbar.addWidget(self.addProtocolButton)
 
         # add settings button
         self.settingsButton = QtWidgets.QToolButton()
@@ -194,6 +249,68 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.createDockWidgets()
 
+    def OpenCreateCameraDialog(self):
+        self.createCameraDialog = CreateCameraDialog(
+            mainWin=self, projectSettings=self.projectSettings, parent=self
+        )
+        self.createCameraDialog.signals.finished.connect(self.addCameraDockWidget)
+        self.createCameraDialog.show()
+
+    def chechCameraDockWidgets(self, animalId: str, boxId: int):
+        """Checks if a dockwidget with the given animalId and boxId already exists.
+
+        Returns
+        -------
+        bool
+            True if a dockwidget with the given animalId and boxId already exists. False otherwise.
+
+        """
+        for dockWidget in self.findChildren(CameraWindowDockWidget):
+            if dockWidget.animalId == animalId and dockWidget.boxId == boxId:
+                return True
+        return False
+
+    def addCameraDockWidget(
+        self, cameraWindow: CameraWindow, boxId: int, animalId: str
+    ):
+        msg_str = None
+        for dockWidget in self.findChildren(CameraWindowDockWidget):
+            if dockWidget.boxId == boxId:
+                msg_str = f"A camera with the BOX ID of {boxId} already exists. Please choose a different box id."
+            elif dockWidget.animalId == animalId:
+                msg_str = f"A camera with the ANIMAL ID {animalId} already exists. Please choose a different animal id."
+
+        if msg_str is not None:
+            self.messageBox(title="ERROR", text=msg_str, severity="Critical")
+            return
+
+        # wrap the camera window in a dock widget
+        dockWidget = CameraWindowDockWidget(
+            cameraWindow=cameraWindow,
+            boxId=boxId,
+            animalId=animalId,
+            fps=30,
+            recFPS=30,
+            prevFPS=30,
+            parent=self,
+        )
+        # add the dock widget to the main window
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dockWidget)
+        # add the dock widget to the view menu
+        self.viewMenu.addAction(dockWidget.toggleViewAction())
+
+    def previewAllCameras(self):
+        for dockWidget in self.findChildren(CameraWindowDockWidget):
+            dockWidget.cameraWindow.startPreview()
+
+    def recordAllCameras(self):
+        for dockWidget in self.findChildren(CameraWindowDockWidget):
+            dockWidget.cameraWindow.startRecording()
+
+    def stopAllCameras(self):
+        for dockWidget in self.findChildren(CameraWindowDockWidget):
+            dockWidget.cameraWindow.stopRecording()
+
     def createDockWidgets(self):
         self.boxManagerDockWidget = BoxManagerDockWidget(self.projectSettings, self)
         self.addDockWidget(
@@ -207,23 +324,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(
             QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget
         )
-        self.trialManagerDockWidget = TrialManagerDockWidget(self.projectSettings, self)
-        self.viewMenu.addAction(self.trialManagerDockWidget.toggleViewAction())
-        self.addDockWidget(
-            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget
-        )
-        self.protocolManagerDockWidget = ProtocolManagerDockWidget(
-            self.projectSettings, self
-        )
-        self.viewMenu.addAction(self.protocolManagerDockWidget.toggleViewAction())
-        self.addDockWidget(
-            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget
-        )
-        # w.i.p. video scoring widget
-        # self.videoScoringWidget = VideoScoringWidget(mainWin=self, parent=self)
-        # self.viewMenu.addAction(self.videoScoringWidget.toggleViewAction())
-        # self.videoScoringWidget.show()
-        
+        # self.trialManagerDockWidget = TrialManagerDockWidget(self.projectSettings, self)
+        # self.viewMenu.addAction(self.trialManagerDockWidget.toggleViewAction())
+        # self.addDockWidget(
+        #     QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget
+        # )
+        # self.protocolManagerDockWidget = ProtocolManagerDockWidget(
+        #     self.projectSettings, self
+        # )
+        # self.viewMenu.addAction(self.protocolManagerDockWidget.toggleViewAction())
+        # self.addDockWidget(
+        #     QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.protocolManagerDockWidget
+        # )
 
     def protocolChanged(self, text):
         # call the refresh method on the dock widgets
@@ -364,6 +476,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         # stop all camera streams
+        for dw in self.findChildren(QtWidgets.QDockWidget):
+            dw.closeEvent(event)
         self.saveSettings()
         event.accept()
 

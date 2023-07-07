@@ -1,1 +1,1 @@
-from RVM.camera.camera import Camera, CameraWindow
+from RVM.camera.camera import Camera

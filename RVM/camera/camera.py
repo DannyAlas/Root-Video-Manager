@@ -6,11 +6,18 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import (QMutex, QObject, Qt, QThread, QTimer, pyqtSignal,
-                          pyqtSlot)
+from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
-                             QStatusBar, QToolBar, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QStatusBar,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from RVM.camera.camThreads import previewer, vidReader, vidWriter
 
@@ -56,6 +63,7 @@ class VideoCapture(QMutex):
     def updatePrevFPS(self, prevFPS):
         self.previewFPS = prevFPS
         self.prevmspf = int(round(1000.0 / self.previewFPS))
+        print(f"updating preview fps to {self.previewFPS}")
 
     def connectVC(self):
         try:
@@ -64,7 +72,8 @@ class VideoCapture(QMutex):
                 cv2.CAP_PROP_BUFFERSIZE, 1
             )  # limit buffer size to one frame
             # set the fourcc to MJPG
-            self.camDevice.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            # self.camDevice.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+
         except Exception as e:
             self.updateStatus(f"Failed connect to {self.cameraName}: {e}")
             self.connected = False
@@ -127,6 +136,21 @@ class CameraSignals(QObject):
     finishedOpen = pyqtSignal()
 
 
+class VideoDisplay(QLabel):
+    """A QLabel where we always repaint the most recent frame"""
+
+    def __init__(self, parent=None):
+        super(VideoDisplay, self).__init__(parent)
+
+    def paintEvent(self, event):
+        if self.pixmap() is not None:
+            self.setPixmap(self.pixmap())
+        super(VideoDisplay, self).paintEvent(event)
+
+    def update(self):
+        self.repaint()
+
+
 class Camera(QObject):
     """A VideoCapture object that reads frames from a webcam, and has methods for recording and previewing.
 
@@ -165,6 +189,8 @@ class Camera(QObject):
         prevFPS: int,
         recFPS: int,
         guiWin: QMainWindow,
+        boxId: int,
+        animalId: int,
     ):
         super(Camera, self).__init__()
         self.guiWin = guiWin
@@ -175,6 +201,10 @@ class Camera(QObject):
         self.prevFPS = prevFPS
         self.recFPS = recFPS
 
+        # TEMPORARY
+        self.boxId = boxId
+        self.animalId = animalId
+
         self.readerRunning = False
         self.prevRunning = False
         self.previewing = False
@@ -184,9 +214,11 @@ class Camera(QObject):
         self.deviceOpen = False
         self.frames = Queue()
         self.framesSincePrev = 0
-        self.prevWindow = QLabel()
+        self.prevWindow = VideoDisplay()
         self.fourcc = cv2.VideoWriter_fourcc("M", "J", "P", "G")
         self.mspf = int(round(1000.0 / self.fps))
+
+        self.ext = ".avi"
 
         if not os.path.isdir(saveFolder):
             self.saveFolder = os.path.join(os.path.expanduser("~"), "Desktop")
@@ -242,7 +274,9 @@ class Camera(QObject):
 
     def startRecording(self) -> None:
         """start recording a video"""
-
+        if not self.deviceOpen:
+            self.updateStatus(f"Opening {self.camName} preview...")
+            self.createVC()
         if self.writing:
             if not self.writeWarning:
                 self.writeWarning = True
@@ -276,6 +310,7 @@ class Camera(QObject):
             self.readWorker.signals.progress.connect(self.printDiagnostics)
             # Step 6: Start the thread
             self.readThread.start()
+            print("start reader")
 
     def startPreviewer(self) -> None:
         """start updating preview"""
@@ -301,25 +336,28 @@ class Camera(QObject):
             self.prevWorker.signals.error.connect(self.updateStatus)
             self.prevWorker.signals.frame.connect(self.receivePrevFrame)
             self.prevWorker.signals.progress.connect(self.printDiagnostics)
-            # Step 6: Start the thread
             self.prevThread.start()
+            print("starting previewer")
 
-    def getFilename(self, ext: str) -> str:
-        """determine the file name for the file we're about to record. ext is the extension. Uses the timestamp for unique file names. The folder is determined by the saveFolder established in the top box of the GUI."""
+    def getFilename(self) -> str:
+        """determine the file name for the file we're about to record."""
 
         try:
-            if self.saveFolder == "":
-                self.saveFolder = os.getcwd()
-            if self.saveFolder[-1] != "/":
-                self.saveFolder += "/"
+            self.saveFolder = str(self.saveFolder)
             if not os.path.exists(self.saveFolder):
                 os.makedirs(self.saveFolder)
+            print(f"save folder: {self.saveFolder}")
+            # datetime.datetime.now format as YYYY-MM-DD_HHMMSS
             fn = (
-                self.saveFolder
-                + self.camName
+                os.path.abspath(self.saveFolder)
+                + os.sep
+                + str(self.animalId)
                 + "_"
-                + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                + ext
+                + "BOX"
+                + str(self.boxId)
+                + "_"
+                + datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+                + self.ext
             )
             fullfn = os.path.abspath(fn)
             if os.path.exists(fullfn):
@@ -328,7 +366,7 @@ class Camera(QObject):
             return fullfn
         except Exception as e:
             print(f"Error getting filename: {e}")
-            return ""
+            return "UNKNOWN"
 
     def createWriter(self) -> None:
         """create a videoWriter object"""
@@ -340,7 +378,7 @@ class Camera(QObject):
         self.vc.writing = True
         self.vc.unlock()
         self.resetVidStats()  # this resets the frame list, and other vars
-        fn = self.getFilename(".avi")  # generate a new file name for this video
+        fn = self.getFilename()  # generate a new file name for this video
         self.vFilename = fn
         vidvars = {
             "fourcc": self.fourcc,
@@ -434,6 +472,7 @@ class Camera(QObject):
             frame, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888
         ).rgbSwapped()
         self.prevWindow.setPixmap(QPixmap.fromImage(image))
+        self.prevWindow.update()
 
     def updatePrevFrame(self, frame: np.ndarray) -> None:
         """Update the live preview window"""
@@ -532,7 +571,10 @@ class Camera(QObject):
         """updates the status"""
         print(st)
         # send the status to the status bar
-        self.guiWin.statusBar.showMessage(st)
+        try:
+            self.guiWin.statusBar.showMessage(st)
+        except:
+            pass
 
     def printDiagnostics(self, st: str) -> None:
         """prints diagnostics"""
@@ -582,102 +624,3 @@ class Camera(QObject):
             self.vc.closeVC()
             self.vc = None
         self.deleteLater()
-
-
-class CameraWindow(QMainWindow):
-    """
-    DEPRECATED
-    TODO: remove this class and replace with a more robust widget.
-
-    A temporary class for a basic camera window responisble for displaying the live preview and recording videos. Contains a Camera object, status bar, and menu bar. This class is temporary and will be replaced by a more robust widget.
-    """
-
-    i = 0
-
-    def __init__(self, cam: Camera = None, mainWin=None, parent=None):
-        super(CameraWindow, self).__init__(parent)
-        self.cam = cam
-        self.mainWin = mainWin
-
-        if self.cam is None:
-            CameraWindow.i += 1
-            self.cam = Camera(
-                CameraWindow.i, f"Camera {CameraWindow.i}", 60, 60, 60, self
-            )
-
-        self.initUI()
-
-    def createCamera(
-        self, camNum: int, camName: str, fps: int, prevFPS: int, recFPS: int
-    ) -> None:
-        """create a camera object"""
-        self.cam = Camera(camNum, camName, fps, prevFPS, recFPS, self)
-
-    def initUI(self):
-        # set up the tool bar
-        self.toolBar = QToolBar()
-        self.previewButton = QAction(
-            QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")), "&Preview", self
-        )
-        self.previewButton.setEnabled(True)
-        self.previewButton.triggered.connect(self.startPreview)
-        self.toolBar.addAction(self.previewButton)
-
-        self.recordButton = QAction(
-            QIcon(os.path.join(self.mainWin.iconsDir, "cam-recorder.png")),
-            "&Record",
-            self,
-        )
-        self.recordButton.setEnabled(False)
-        self.recordButton.triggered.connect(self.startRecording)
-        self.toolBar.addAction(self.recordButton)
-
-        self.stopButton = QAction(
-            QIcon(os.path.join(self.mainWin.iconsDir, "stop-record.png")),
-            "&Stop",
-            self,
-        )
-        # inactivate the stop button until we start recording
-        self.stopButton.setEnabled(False)
-        self.stopButton.triggered.connect(self.stopRecording)
-        self.toolBar.addAction(self.stopButton)
-
-        self.addToolBar(self.toolBar)
-
-        # set up the status bar
-        self.statusBar = QStatusBar(self)
-        self.setStatusBar(self.statusBar)
-
-        # set up the window
-        self.setWindowTitle(self.cam.camName)
-        # set default window size
-        self.resize(640, 480)
-
-    def startPreview(self):
-        """start the live preview"""
-        self.cam.startPreview()
-        # set up the main window
-        self.mainWidget = self.cam.prevWindow
-        self.mainLayout = QVBoxLayout(self.mainWidget)
-        self.mainLayout.setContentsMargins(0, 0, 0, 0)
-        self.setCentralWidget(self.mainWidget)
-        self.resize(self.cam.vc.imw, self.cam.vc.imh)
-        self.previewButton.setEnabled(False)
-        self.recordButton.setEnabled(True)
-
-    def startRecording(self):
-        """save the video"""
-        self.cam.startRecording()
-        self.recordButton.setEnabled(False)
-        self.stopButton.setEnabled(True)
-
-    def stopRecording(self):
-        """stop saving the video"""
-        self.cam.stopRecording()
-        self.recordButton.setEnabled(True)
-        self.stopButton.setEnabled(False)
-
-    def closeEvent(self, event):
-        """close the camera when the window is closed"""
-        self.cam.close()
-        super(CameraWindow, self).closeEvent(event)

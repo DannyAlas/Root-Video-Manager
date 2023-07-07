@@ -65,9 +65,6 @@ class vidReader(QObject):
         if not self.cont:
             self.close()
             return
-        # print the delta time
-        delta = self.dnow - self.lastTime
-        print(f"fps: {1 / delta.total_seconds()}")
 
         self.sendNewFrame(frame)  # send back to window
         self.checkDrop(frame)  # check for dropped frames
@@ -132,7 +129,6 @@ class vidReader(QObject):
                 self.sendFrame(frame, True)
 
     def close(self):
-        print("closing reader")
         if hasattr(self, "timer") and self.timer.isActive():
             self.timer.stop()
         self.signals.finished.emit()
@@ -173,14 +169,12 @@ class previewer(QObject):
         self.sleepTime = 0
         self.cont = True
 
-    @pyqtSlot()
     def run(self) -> None:
         """Run this function when this thread is started. Collect a frame and return to the gui"""
-
         self.timer = QTimer()
         self.timer.timeout.connect(self.loop)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self.timer.start(int(self.mspf / 2))
+        self.timer.start(int(self.mspf * 2))
         self.timerRunning = True
 
     def loop(self):
@@ -258,7 +252,7 @@ class vwSignals(QObject):
 
 class vidWriter(QObject):
     """TODO: REWORK THIS
-    A ~failsafe~ video writer. Creates a cv2.VideoWriter object at initialization, and it takes frames in the queue that gets writen to a file. 
+    A ~failsafe~ video writer. Creates a cv2.VideoWriter object at initialization, and it takes frames in the queue that gets writen to a file.
     ~This somewhat failsafe as in if the videowriter writes slower than the timer reads frames, the extra frames will be stored in memory until the vidWriter object can write them.
 
     """
@@ -285,8 +279,7 @@ class vidWriter(QObject):
 
     @pyqtSlot()
     def run(self) -> None:
-        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording
-        """
+        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording"""
         printFreq = 100
 
         while True:
@@ -326,15 +319,18 @@ class vidWriter(QObject):
         print("closing writer")
         self.kill = True
 
+
 class vidAnalysisSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(str, bool)
     frame = pyqtSignal(np.ndarray, bool)
 
+
 class vidAnalysis(QObject):
     """
     This is an analysis object that takes in a video file and handles playback. Simmilar to the previewer but with methods for seeking, frame by frame playback, etc.
     """
+
     def __init__(self, fn: str, vidvars: dict = None):
         super(vidAnalysis, self).__init__()
         self.vFilename = fn
@@ -361,8 +357,7 @@ class vidAnalysis(QObject):
         self.timerRunning = True
 
     def loop(self):
-        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording
-        """
+        """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording"""
         try:
             frame = self.readFrame()
             if frame is None:
@@ -385,7 +380,7 @@ class vidAnalysis(QObject):
             self.signals.error.emit(f"Error collecting frame: {e}", True)
             return None
         else:
-            return frame        
+            return frame
 
     def sendFrame(self, frame: np.ndarray, pad: bool):
         """send a frame to the GUI"""

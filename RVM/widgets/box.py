@@ -6,8 +6,6 @@ import os
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from RVM.bases import Box, BoxBase, ProjectSettings, Protocol
-from RVM.camera import Camera, CameraWindow
-
 
 class BoxManagerDockWidgetSignals(QtCore.QObject):
     boxCreated = QtCore.pyqtSignal(Box)
@@ -365,7 +363,7 @@ class BoxDialog(QtWidgets.QDialog):
 
         # create the box id line edit
         self.boxIdLineEdit = QtWidgets.QLineEdit()
-        self.boxIdLineEdit.setPlaceholderText("Enter a box name")
+        self.boxIdLineEdit.setPlaceholderText("Enter a box ID")
 
         # create the camera combo box
         self.cameraComboBox = QtWidgets.QComboBox()
@@ -380,7 +378,7 @@ class BoxDialog(QtWidgets.QDialog):
         self.notesTextEdit.setPlaceholderText("Enter notes about the box")
 
         # add the widgets to the form layout
-        self.formLayout.addRow("Box Name", self.boxIdLineEdit)
+        self.formLayout.addRow("Box ID", self.boxIdLineEdit)
         self.formLayout.addRow("Camera", self.cameraComboBox)
         self.formLayout.addRow("", self.previewButton)
         self.formLayout.addRow("Notes", self.notesTextEdit)
@@ -417,23 +415,8 @@ class BoxDialog(QtWidgets.QDialog):
         return True, ""
 
     def preview(self):
-        videoDeviceIndex = self.cameraComboBox.currentIndex()
-        # dock widget for the camera
-        cameraDockWidget = QtWidgets.QDockWidget()
-        cameraWindow = CameraWindow(parent=self, mainWin=self.mainWin)
-        cameraDockWidget.setWidget(cameraWindow)
-        self.mainWin.addDockWidget(
-            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, cameraDockWidget
-        )
-        cameraDockWidget.show()
-        cameraWindow.createCamera(
-            camNum=videoDeviceIndex,
-            camName=self.cameraComboBox.currentText(),
-            fps=30,
-            prevFPS=30,
-            recFPS=30,
-        )
-        cameraWindow.show()
+        """DEPRECATED"""
+        pass
 
     def loadBox(self, box: Box):
         self.currentBox = box

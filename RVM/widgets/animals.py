@@ -1,8 +1,6 @@
 # a dock widget for configuring the project animals
 
 import os
-from calendar import c
-
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from RVM.bases import Animal, ProjectSettings
