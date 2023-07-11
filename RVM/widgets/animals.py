@@ -304,6 +304,9 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
     def refresh(self):
         self.addAnimals()
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        return super().closeEvent(event)
+
 
 class AnimalDialogSignals(QtCore.QObject):
     okClicked = QtCore.pyqtSignal(Animal)

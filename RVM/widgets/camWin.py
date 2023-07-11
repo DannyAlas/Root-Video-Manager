@@ -1,7 +1,7 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 import os
 from RVM.camera.camera import Camera
-from RVM.bases import ProjectSettings
+from RVM.bases import ProjectSettings, Trial
 
 class CameraPreviewWindow(QtWidgets.QMainWindow):
     def __init__(
@@ -33,8 +33,7 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
             prevFPS=prevFPS,
             recFPS=recFPS,
             guiWin=self,
-            boxId=0,
-            animalId=0,
+            trial=None,
         )
 
     def initUI(self):
@@ -100,12 +99,14 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
         self, cameraWindow, fps, prevFPS, recFPS, animalId, boxId, parent=None
     ):
         super(CameraWindowDockWidget, self).__init__(parent)
-        self.cameraWindow = cameraWindow
+        self.cameraWindow: CameraWindow = cameraWindow
+        self.cameraWindow.setParent(self)
         self.fps = fps
         self.prevFPS = prevFPS
         self.recFPS = recFPS
         self.animalId = animalId
         self.boxId = boxId
+        self.closeable = True
         self.initUi()
 
     def initUi(self):
@@ -118,11 +119,51 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
         )
         self.setWindowTitle(f"Animal: {self.animalId} - Box: {self.boxId}")
 
+    def close(self):
+        if self.cameraWindow.trial is not None:  
+            if self.cameraWindow.trial.state == "Running":
+                self.closeable = False
+                confimationDialog = QtWidgets.QMessageBox()
+                confimationDialog.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+                confimationDialog.setText(
+                    f"BOX {self.boxId} is currently recording {self.animalId}. Are you sure you want to STOP this trial?"
+                )
+                confimationDialog.setWindowTitle("Warning")
+                confimationDialog.setStandardButtons(
+                    QtWidgets.QMessageBox.StandardButton.Yes
+                    | QtWidgets.QMessageBox.StandardButton.No
+                )
+                confimationDialog.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
+                ok = confimationDialog.exec()
+                if ok == QtWidgets.QMessageBox.StandardButton.Yes:
+                    self.closeable = True
+                    self.cameraWindow.trial.stop()
+                    if self.cameraWindow.close():
+                        self.parent().removeDockWidget(self)
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+            else:
+                if self.cameraWindow.close():
+                    self.parent().removeDockWidget(self)
+                    return True
+                else:
+                    return False
+        else:
+            if self.cameraWindow.close():
+                self.parent().removeDockWidget(self)
+                return True
+            else:
+                return False
+
     def closeEvent(self, event):
-        if self.cameraWindow.close():
-            event.accept()
-            # close the dock widget in the main window
-            self.parent().removeDockWidget(self)
+        if self.closeable:
+            if self.close():
+                event.accept()
+            else:
+                event.ignore()
         else:
             event.ignore()
 
@@ -136,8 +177,7 @@ class CameraWindow(QtWidgets.QMainWindow):
         self,
         cam: Camera = None,
         camNum: int = None,
-        boxId: int = None,
-        animalId=None,
+        trial: Trial = None,
         mainWin=None,
         parent=None,
     ):
@@ -145,8 +185,7 @@ class CameraWindow(QtWidgets.QMainWindow):
         self.cam = cam
         self.mainWin = mainWin
         self.camNum = camNum
-        self.boxId = boxId
-        self.animalId = animalId
+        self.trial = trial
 
         if self.cam is None:
             # create a camera object
@@ -170,8 +209,7 @@ class CameraWindow(QtWidgets.QMainWindow):
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
-            boxId=self.boxId,
-            animalId=self.animalId,
+            trial = self.trial,
             guiWin=self,
         )
 
@@ -206,6 +244,14 @@ class CameraWindow(QtWidgets.QMainWindow):
         self.stopButton.triggered.connect(self.stopRecording)
         self.toolBar.addAction(self.stopButton)
 
+        self.resizeButton = QtGui.QAction(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "resize.png")),
+            "&Resize",
+            self,
+        )
+        self.resizeButton.triggered.connect(self.resizeWindow)
+        self.toolBar.addAction(self.resizeButton)
+
         self.addToolBar(self.toolBar)
 
         # set up the status bar
@@ -237,9 +283,20 @@ class CameraWindow(QtWidgets.QMainWindow):
 
     def stopRecording(self):
         """stop saving the video"""
+        self.trial.stop()
         self.cam.stopRecording()
         self.recordButton.setEnabled(True)
         self.stopButton.setEnabled(False)
+
+    def resizeWindow(self):
+        """resize the dock widget to the size of the video"""
+        # calculate the offset from the toolbar
+        self.toolBarHeight = self.toolBar.sizeHint().height()
+        self.offset = self.height() - self.mainWidget.height() - self.toolBarHeight
+        self.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        self.mainWidget.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        self.parent().resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        print(self.cam.vc.imw, self.cam.vc.imh)
 
     def close(self):
         """

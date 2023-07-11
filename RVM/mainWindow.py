@@ -1,8 +1,8 @@
 import os
-from typing import Literal
+from typing import Literal, Union
 
 from bases import ProjectSettings
-from capture_devices import devices
+from devices import get_devices, check_ffmpeg
 from PyQt6 import QtCore, QtGui, QtWidgets
 from widgets import *
 
@@ -29,6 +29,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.initSettings()
         self.initUI()
+        self.initMenus()
 
     def initSettings(self):
         latest_project_location = self.qtsettings.value("latest_project_location")
@@ -59,7 +60,7 @@ class MainWindow(QtWidgets.QMainWindow):
         to_del = []
         for key, val in self.projectSettings.video_devices.items():
             # if the key is not in the new devices, remove it from the project settings and Box
-            if key not in self.videoDevices:
+            if key not in self.videoDevices.keys():
                 for box in self.projectSettings.boxes:
                     if key == box.camera:
                         box.camera = ""
@@ -67,32 +68,82 @@ class MainWindow(QtWidgets.QMainWindow):
         for key in to_del:
             del self.projectSettings.video_devices[key]
         self.projectSettings.video_devices = self.videoDevices
+        self.refreshAllWidgets(self)
 
+    def initMenus(self):
+        # a layout menu in the view menu
+        self.layoutMenu = QtWidgets.QMenu("Layout", self)
+        self.viewMenu.addMenu(self.layoutMenu)
+
+        # to the layout menu, add a oraganize videos action
+        self.organizeVideosAction = QtGui.QAction("Recording", self)
+        self.organizeVideosAction.triggered.connect(self.recordingLayout)
+        self.layoutMenu.addAction(self.organizeVideosAction)
+
+        # IO menu
+        self.ioMenu = QtWidgets.QMenu("IO", self)
+        self.menuBar.addMenu(self.ioMenu)
+        # to the IO menu, add a refresh video devices action
+        self.refreshVideoDevicesAction = QtGui.QAction("Refresh Video Devices", self)
+        self.refreshVideoDevicesAction.triggered.connect(self.initDevices)
+        self.ioMenu.addAction(self.refreshVideoDevicesAction)
+
+    def getCameraWindowGrid(self):
+        """
+        Get a grid layout of the CameraWindowDockWidget
+        
+        Returns
+        -------
+        QtWidgets.QGridLayout
+            A grid layout with all the CameraWindowDockWidgets
+        """
+        dws = []
+        for dw in self.findChildren(QtWidgets.QDockWidget):
+            # if the widget is a CameraWindowDockWidget add it to the list
+            if isinstance(dw, CameraWindowDockWidget):
+                dws.append(dw)
+
+        if len(dws) > 0:
+            # figure out the number of rows and columns
+            num_rows = int(len(dws) ** 0.5)
+            num_cols = int(len(dws) / num_rows)
+            # create a grid layout
+            grid = QtWidgets.QGridLayout()
+            # add the dock widgets to the grid
+            for i in range(num_rows):
+                for j in range(num_cols):
+                    grid.addWidget(dws[i * num_cols + j], i, j)
+            return grid
+        else:
+            return None
+
+    def recordingLayout(self):
+        # closes all the dock widgets except for the CameraWindowDockWidgets
+        for dw in self.findChildren(QtWidgets.QDockWidget):
+            if not isinstance(dw, CameraWindowDockWidget):
+                dw.close()
+        # get the grid layout of the CameraWindowDockWidgets
+        grid = self.getCameraWindowGrid()
+        if grid is not None:
+            # create a new widget and set the layout
+            class Widget(QtWidgets.QWidget):
+                def __init__(self):
+                    super(Widget, self).__init__()
+                    self.setLayout(grid)
+                def removeDockWidget(self, dockWidget):
+                    self.layout().removeWidget(dockWidget)
+                    dockWidget.closeEvent(event=QtGui.QCloseEvent())
+            widget = Widget()
+            widget.setLayout(grid)
+            # create a new dock widget and set the widget
+            dockWidget = QtWidgets.QDockWidget("Recording Layout", self)
+            dockWidget.setWidget(widget)
+            # add the dock widget to the main window
+            self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dockWidget)
+        
     def getVideoDevices(self) -> dict:
-        d_list = devices.run_with_param(
-            device_type="video", alt_name=True, list_all=True, result_=True
-        )
-        # the list is ordered by device-name and alternative-name
-        # grab the device name and alternative name from the list and use alt as key and device as value
-        d_dict = {}
-        for i in range(0, len(d_list), 2):
-            # use the alternative name as the key
-            alt_name_str = d_list[i + 1]
-            alt_name = alt_name_str.split(":")[1].strip()
-            # use the device name as the value
-            device_name_str = d_list[i]
-            device_name = device_name_str.split(":")[1].strip()
-            d_dict[alt_name] = device_name
-
-        # if there are any duplicate device names, add a number to the end of the name
-        for key, value in d_dict.items():
-            if list(d_dict.values()).count(value) > 1:
-                # get the index of the current key
-                index = list(d_dict.keys()).index(key)
-                # add a number to the end of the key
-                d_dict[key] = value + f" ({index+1})"
-
-        return d_dict
+        check_ffmpeg()
+        return get_devices()["video"]
 
     def initUI(self):
         # create toolbar
@@ -396,7 +447,7 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         self.refreshAllWidgets(self)
 
-    def refreshAllWidgets(self, caller: QtWidgets.QDockWidget):
+    def refreshAllWidgets(self, caller: Union[QtWidgets.QDockWidget, QtWidgets.QMainWindow]):
         """
         Refresh all widgets except the caller widget. The caller widget is the widget that called this method and it should handle its own refresh.
 
@@ -404,7 +455,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ----------
         caller : QtWidgets.QDockWidget
             The widget that called this method.
-        """
+        """           
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
             if dockWidget != caller:
                 dockWidget.refresh()
@@ -466,7 +517,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         # stop all camera streams
         for dw in self.findChildren(QtWidgets.QDockWidget):
-            dw.closeEvent(event)
+            if isinstance(dw, CameraWindowDockWidget):
+                aceept = dw.close()
+                if not aceept:
+                    event.ignore()
+                    return
         self.saveSettings()
         event.accept()
 

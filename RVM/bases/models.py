@@ -1,7 +1,7 @@
 # the models for the project with helper functions
 import json
 import os
-
+import datetime
 from RVM.bases.base import (
     AnimalBase,
     BoxBase,
@@ -112,6 +112,10 @@ class Trial(TrialBase):
         # set our attributes
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def stop(self):
+        self.state = "Stopped"
+        self.end_time = datetime.datetime.now()
 
     @staticmethod
     def avalible_states():

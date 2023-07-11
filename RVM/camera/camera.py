@@ -1,4 +1,5 @@
 import datetime
+from math import e
 import os
 import sys
 from queue import Queue
@@ -6,11 +7,12 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QRectF
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
+    QSizePolicy,
     QMainWindow,
     QMenuBar,
     QStatusBar,
@@ -20,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from RVM.camera.camThreads import previewer, vidReader, vidWriter
-
+from RVM.bases import Trial
 
 class VideoCaptureSignals(QObject):
     status = pyqtSignal(str, bool)
@@ -141,6 +143,12 @@ class VideoDisplay(QLabel):
 
     def __init__(self, parent=None):
         super(VideoDisplay, self).__init__(parent)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setMinimumSize(1, 1)
+        self.setScaledContents(True)
 
     def paintEvent(self, event):
         if self.pixmap() is not None:
@@ -189,8 +197,7 @@ class Camera(QObject):
         prevFPS: int,
         recFPS: int,
         guiWin: QMainWindow,
-        boxId: int,
-        animalId: int,
+        trial: Trial=None,
     ):
         super(Camera, self).__init__()
         self.guiWin = guiWin
@@ -201,9 +208,7 @@ class Camera(QObject):
         self.prevFPS = prevFPS
         self.recFPS = recFPS
 
-        # TEMPORARY
-        self.boxId = boxId
-        self.animalId = animalId
+        self.trial = trial
 
         self.fileName = None
 
@@ -342,7 +347,8 @@ class Camera(QObject):
 
     def getFilename(self) -> str:
         """determine the file name for the file we're about to record."""
-
+        if self.trial is None:
+            return ""
         try:
             self.saveFolder = str(self.saveFolder)
             if not os.path.exists(self.saveFolder):
@@ -352,10 +358,10 @@ class Camera(QObject):
             fn = (
                 os.path.abspath(self.saveFolder)
                 + os.sep
-                + str(self.animalId)
+                + str(self.trial.animal.uid)
                 + "_"
                 + "BOX"
-                + str(self.boxId)
+                + str(self.trial.box.uid)
                 + "_"
                 + datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
                 + self.ext
@@ -373,6 +379,8 @@ class Camera(QObject):
         """create a videoWriter object"""
         if self.fileName is None:
             raise ValueError("No filename specified")
+        if self.trial is None:
+            raise ValueError("No trial specified")
 
         self.writeWarning = False
         self.recording = True
@@ -473,6 +481,7 @@ class Camera(QObject):
             frame, frame.shape[1], frame.shape[0], QImage.Format.Format_RGB888
         ).rgbSwapped()
         self.prevWindow.setPixmap(QPixmap.fromImage(image))
+        # fit the window to the image
         self.prevWindow.update()
 
     def updatePrevFrame(self, frame: np.ndarray) -> None:
@@ -522,11 +531,15 @@ class Camera(QObject):
     @pyqtSlot()
     def doneRecording(self) -> None:
         """update the status box when we're done recording"""
-        self.writing = False
-        self.vc.lock()
-        self.vc.writing = False
-        self.vc.unlock()
-        self.updateRecordStatus()
+        # we put this in a try block because it can fail if we stop recording abruptly and the vc is destroyed
+        try:
+            self.writing = False
+            self.vc.lock()
+            self.vc.writing = False
+            self.vc.unlock()
+            self.updateRecordStatus()
+        except:
+            pass
 
     @pyqtSlot(np.ndarray, bool)
     def receivePrevFrame(self, frame: np.ndarray, pad: bool):

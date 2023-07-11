@@ -1,7 +1,9 @@
 # a dock widget for the management of boxes in a project
 # updates the project settings when a box is modified
 
+from math import e
 import os
+from unittest import expectedFailure
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -56,10 +58,22 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.deleteBoxButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
         )
-        self.deleteBoxButton.clicked.connect(self.deleteBox)
+        self.deleteBoxButton.clicked.connect(self.deleteBoxes)
+
+        self.previewAllBoxCamerasButton = QtWidgets.QToolButton()
+        self.previewAllBoxCamerasButton.setText("Preview Box Cameras")
+        self.previewAllBoxCamerasButton.setToolTip("Preview all box cameras")
+        self.previewAllBoxCamerasButton.setIcon(
+            QtGui.QIcon(os.path.join(self.parent.iconsDir, "camera.png"))
+        )
+        self.previewAllBoxCamerasButton.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        self.previewAllBoxCamerasButton.clicked.connect(self.previewAllBoxCameras)
 
         self.buttonLayout.addWidget(self.createBoxButton)
         self.buttonLayout.addWidget(self.deleteBoxButton)
+        self.buttonLayout.addWidget(self.previewAllBoxCamerasButton)
         self.buttonLayout.addStretch(1)
 
         # a search bar for the tree widget
@@ -99,9 +113,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             lambda: self.editBox(self.treeWidget.currentItem(), 0)
         )
         self.deleteAction = QtGui.QAction("Delete", self)
-        self.deleteAction.triggered.connect(
-            lambda: self.deleteBox(self.treeWidget.currentItem(), 0)
-        )
+        self.deleteAction.triggered.connect(self.deleteBoxes)
         self.contextMenu.addAction(self.editAction)
         self.contextMenu.addAction(self.deleteAction)
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
@@ -120,7 +132,6 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         """
         Create a new box and add it to the project settings
         """
-        print("Creating new box")
         newBoxDialog = BoxDialog(self.projectSettings, self.parent, self)
         newBoxDialog.signals.okClicked.connect(self.addBox)
         newBoxDialog.show()
@@ -140,7 +151,9 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.signals.boxCreated.emit(box)
 
     def deleteBoxes(self):
-        pass
+        for item in self.treeWidget.selectedItems():
+            # FIXME: this is somehow returning an already deleted box??
+            self.deleteBox(item)
 
     def editBox(self, item: QtWidgets.QTreeWidgetItem, column: int):
         """
@@ -159,6 +172,38 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         editBoxDialog.loadBox(box)
         editBoxDialog.signals.okClicked.connect(self.updateBox)
         editBoxDialog.show()
+
+    def previewAllBoxCameras(self):
+        for i in range(self.treeWidget.topLevelItemCount()):
+            item = self.treeWidget.topLevelItem(i)
+            self.previewCamera(item)
+
+    def previewCamera(self, item):
+        if type(item) == QtWidgets.QTreeWidgetItem:
+            box = self.getBoxFromItem(item)
+        elif type(item) == Box or type(item) == BoxBase:
+            box = self.projectSettings.getBoxFromId(item.uid)
+        else:
+            self.parent.messageBox("Error", "Could not preview camera", "Warning")
+            return
+
+        try:
+            self.parent.updateStatus("Previewing Camera For Box {}".format(box.uid))
+            self.cameraPreviewWindow = CameraPreviewWindow(
+                parent=self.parent, mainWin=self.parent
+            )
+            self.cameraPreviewWindow.createCamera(
+                camNum=list(self.parent.videoDevices.keys()).index(box.camera),
+                camName=f'Box {box.uid} Camera',
+                fps=30,
+                prevFPS=30,
+                recFPS=30,
+            )
+            self.cameraPreviewWindow.show()
+        except Exception as e:
+            self.parent.messageBox(
+                "Error", f"Could not preview camera\n\n{e}", "Warning"
+            )
 
     def updateBox(self, box: Box):
         """
@@ -186,7 +231,10 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             The item to delete
         """
         if type(item) == QtWidgets.QTreeWidgetItem:
-            box = self.getBoxFromItem(item)
+            try:
+                box = self.getBoxFromItem(item)
+            except:
+                return
         elif type(item) == Box or type(item) == BoxBase:
             box = item
         else:
@@ -330,6 +378,9 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             key for key, value in self.parent.videoDevices.items() if value == name
         ][0]
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        return super().closeEvent(event)
+
 
 class BoxDialogSignals(QtCore.QObject):
     okClicked = QtCore.pyqtSignal(BoxBase)
@@ -402,40 +453,41 @@ class BoxDialog(QtWidgets.QDialog):
         # add the buttons to the button layout
         self.buttonLayout.addWidget(self.okButton)
         self.buttonLayout.addWidget(self.cancelButton)
-        self.buttonLayout.addWidget(self.deleteButton)
+        self.buttonLayout.addWidget(self.deleteButton)      
 
     def checkInputs(self):
         if self.currentBox is None:
             if self.boxIdLineEdit.text() == "":
-                return False, "Please enter a box name"
+                return False, "Please enter a box ID"
             if self.boxIdLineEdit.text() in [
                 box.uid for box in self.projectSettings.boxes
             ]:
                 return False, "Box ID already exists please enter a unique box ID"
+            if self.cameraComboBox.currentText() == "":
+                return False, "Please select a camera"
+        if self.cameraComboBox.currentText() in [
+            self.mainWin.videoDevices[box.camera] for box in self.projectSettings.boxes
+        ]:
+            return False, f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera"
+            
         return True, ""
 
     def preview(self):
-        """DEPRECATED"""
         self.cameraPreviewWindow = CameraPreviewWindow(
             parent=self.mainWin, mainWin=self.mainWin
         )
-        box = self.projectSettings.getBoxFromId(self.boxIdLineEdit.text())
-        if box is None:
-            self.mainWin.messageBox(title="ERROR", text="Box not Found", severity="Critical")
-            return
         try:
-            camera = self.mainWin.videoDevices[box.camera]
+            self.cameraPreviewWindow.createCamera(
+                camNum=list(self.mainWin.videoDevices.values()).index(self.cameraComboBox.currentText()),
+                camName=self.cameraComboBox.currentText(),
+                fps=30,
+                prevFPS=30,
+                recFPS=30,
+            )
+            self.cameraPreviewWindow.show()
         except Exception as e:
-            self.mainWin.messageBox(title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical")
+            self.mainWin.messageBox(title="ERROR", text=f"Could Not Preview Camera\n\n{e}", severity="Critical")
             return
-        self.cameraPreviewWindow.createCamera(
-            camNum=list(self.mainWin.videoDevices.values()).index(camera),
-            camName=camera,
-            fps=30,
-            prevFPS=30,
-            recFPS=30,
-        )
-        self.cameraPreviewWindow.show()
 
     def loadBox(self, box: Box):
         self.currentBox = box

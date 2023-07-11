@@ -22,6 +22,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
 
     def initUi(self):
         self.setWindowTitle("Trial Manager")
+        self.setFilters()
 
         # central widget
         self.centralWidget = QtWidgets.QWidget()
@@ -55,7 +56,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.deleteTrialButton.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
         )
-        self.deleteTrialButton.clicked.connect(self.deleteTrial)
+        self.deleteTrialButton.clicked.connect(self.deleteDeterminer)
 
         self.runSelectedButton = QtWidgets.QToolButton()
         self.runSelectedButton.setText("Run Selected")
@@ -67,6 +68,14 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
         )
         self.runSelectedButton.clicked.connect(self.openRunDialog)
+
+        # a checkbox to hide completed trials
+        self.showAllCheckBox = QtWidgets.QCheckBox()
+        self.showAllCheckBox.setText("Show All")
+        self.showAllCheckBox.setToolTip(
+            "Show All Trials"
+        )
+        self.showAllCheckBox.stateChanged.connect(self.updateFilter)
 
         self.stopAllButton = QtWidgets.QToolButton()
         self.stopAllButton.setText("Stop All")
@@ -90,6 +99,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.searchBar.setPlaceholderText("Search")
         self.searchBar.textChanged.connect(self.searchTreeWidget)
         self.buttonLayout.addWidget(self.searchBar)
+        self.buttonLayout.addWidget(self.showAllCheckBox)
 
         self.treeWidget = QtWidgets.QTreeWidget()
         self.treeWidget.setHeaderLabels(
@@ -129,20 +139,44 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         )
         self.previewAction = QtGui.QAction("Preview", self)
         self.previewAction.triggered.connect(
-            lambda: self.previewTrial(self.treeWidget.currentItem())
+            lambda: self.previewCamera(self.treeWidget.currentItem())
         )
         self.deleteAction = QtGui.QAction("Delete", self)
-        self.deleteAction.triggered.connect(
-            lambda: self.deleteTrial(self.treeWidget.currentItem())
+        self.deleteAction.triggered.connect(self.deleteDeterminer)
+        self.duplicateAction = QtGui.QAction("Duplicate", self)
+        self.duplicateAction.triggered.connect(
+            lambda: self.duplicateTrial(self.treeWidget.currentItem())
         )
         self.contextMenu.addAction(self.editAction)
         self.contextMenu.addAction(self.previewAction)
         self.contextMenu.addAction(self.deleteAction)
+        self.contextMenu.addAction(self.duplicateAction)
         self.contextMenu.exec(self.treeWidget.mapToGlobal(pos))
+
+    def setFilters(self, filters: dict = None):
+        if filters is None:
+            self.trialFilters = {
+                "State": ["Running", "Waiting"],
+            }
+        
+    def updateFilter(self):
+        if self.showAllCheckBox.isChecked():
+            self.trialFilters["State"] = []
+        else:
+            self.trialFilters["State"] = ["Running", "Waiting"]
+        self.updateTreeWidget()
+
+    def filteringCriteria(self, trial: Trial):
+        """Checks if a trial passes the filtering criteria"""
+        if self.trialFilters["State"] and trial.state not in self.trialFilters["State"]:
+            return True
+        return False
 
     def updateTreeWidget(self):
         self.treeWidget.clear()
         for trial in self.projectSettings.trials:
+            if self.filteringCriteria(trial):
+                continue
             self.addTrialToTreeWidget(trial)
 
     def addTrialToTreeWidget(self, trial: Trial):
@@ -216,6 +250,36 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
         self.trialDialog.signals.okClicked.connect(self.updateTrial)
         self.trialDialog.exec()
 
+    def duplicateTrial(self, *args, **kwargs):
+        # get selected trials
+        for trialItem in self.treeWidget.selectedItems():
+            trial = self.projectSettings.getTrialFromId(trialItem.text(0))
+            # new trial with same parameters
+            newTrial = Trial(
+                animal=trial.animal,
+                box=trial.box,
+                start_time=trial.start_time,
+                end_time=trial.end_time,
+                notes=trial.notes,
+            )
+            self.addTrial(newTrial)
+
+    def deleteDeterminer(self):
+        if len(self.treeWidget.selectedItems()) == 1:
+            self.deleteTrial(self.treeWidget.currentItem())
+        elif len(self.treeWidget.selectedItems()) > 1:
+            self.deleteMultipleTrials()
+
+    def deleteMultipleTrials(self):
+        confim = self.parent.confirmBox(
+            "Delete trials",
+            f"Are you sure you want to delete {len(self.treeWidget.selectedItems())} trials?",
+        )
+        if confim:
+            for item in self.treeWidget.selectedItems():
+                self.projectSettings.trials.remove(self.projectSettings.getTrialFromId(item.text(0)))
+            self.updateTreeWidget()
+
     def deleteTrial(self, item, *args, **kwargs):
         if type(item) == QtWidgets.QTreeWidgetItem:
             trial = self.projectSettings.getTrialFromId(item.text(0))
@@ -234,7 +298,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             self.updateTreeWidget()
             self.parent.updateStatus("Trial {} deleted".format(trial.uid))
 
-    def previewTrial(self, item):
+    def previewCamera(self, item):
         if type(item) == QtWidgets.QTreeWidgetItem:
             trial = self.projectSettings.getTrialFromId(item.text(0))
         elif type(item) == Trial or type(item) == TrialBase:
@@ -293,6 +357,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             self.updateTrial(trial)
         for dockWidget in self.parent.findChildren(CameraWindowDockWidget):
             dockWidget.cameraWindow.stopRecording()
+            dockWidget.close()
 
         self.parent.updateStatus("Stopped Trials")
 
@@ -346,6 +411,8 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
     def refresh(self):
         self.updateTreeWidget()
 
+    def closeEvent(self, event):
+        return super().closeEvent(event)
 
 class TrialEditDialogSignals(QtCore.QObject):
     okClicked = QtCore.pyqtSignal(TrialBase)
@@ -623,8 +690,7 @@ class RunTrialsDialog(QtWidgets.QDialog):
                     parent=self.mainWin,
                     camNum=list(self.mainWin.videoDevices.keys()).index(trial.box.camera),
                     mainWin=self.mainWin,
-                    boxId=trial.box.uid,
-                    animalId=trial.animal.uid,
+                    trial=trial,
                 )
                 dw = self.parent.addCameraDockWidget(cameraWindow, trial.box.uid, trial.animal.uid)
                 trial_camera_dws[trial.uid] = dw
