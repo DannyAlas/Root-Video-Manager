@@ -77,6 +77,15 @@ def format_device_output(text):
                 cont = False
         except:
             continue
+        
+    for device in devices["video"]:
+        if list(devices["video"].values()).count(devices["video"][device]) > 1:
+            devices["video"][device] = devices["video"][device] + str(list(devices["video"].values()).index(devices["video"][device]))
+    for device in devices["audio"]:
+        if list(devices["audio"].values()).count(devices["audio"][device]) > 1:
+            devices["audio"][device] = devices["audio"][device] + str(list(devices["audio"].values()).index(devices["audio"][device]))
+    
+    print(devices)
 
     return devices
 
