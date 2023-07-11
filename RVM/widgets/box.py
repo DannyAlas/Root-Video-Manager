@@ -465,10 +465,10 @@ class BoxDialog(QtWidgets.QDialog):
                 return False, "Box ID already exists please enter a unique box ID"
             if self.cameraComboBox.currentText() == "":
                 return False, "Please select a camera"
-        if self.cameraComboBox.currentText() in [
-            self.mainWin.videoDevices[box.camera] for box in self.projectSettings.boxes
-        ]:
-            return False, f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera"
+        # if self.cameraComboBox.currentText() in [
+        #     self.mainWin.videoDevices[box.camera] for box in self.projectSettings.boxes
+        # ]:
+        #     return False, f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera"
             
         return True, ""
 
