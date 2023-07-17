@@ -2,7 +2,7 @@ import os
 from typing import Literal, Union
 
 from bases import ProjectSettings
-from devices import get_devices, check_ffmpeg
+from devices import check_ffmpeg, get_devices
 from PyQt6 import QtCore, QtGui, QtWidgets
 from widgets import *
 
@@ -91,7 +91,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def getCameraWindowGrid(self):
         """
         Get a grid layout of the CameraWindowDockWidget
-        
+
         Returns
         -------
         QtWidgets.QGridLayout
@@ -130,9 +130,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 def __init__(self):
                     super(Widget, self).__init__()
                     self.setLayout(grid)
+
                 def removeDockWidget(self, dockWidget):
                     self.layout().removeWidget(dockWidget)
                     dockWidget.closeEvent(event=QtGui.QCloseEvent())
+
             widget = Widget()
             widget.setLayout(grid)
             # create a new dock widget and set the widget
@@ -140,7 +142,7 @@ class MainWindow(QtWidgets.QMainWindow):
             dockWidget.setWidget(widget)
             # add the dock widget to the main window
             self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dockWidget)
-        
+
     def getVideoDevices(self) -> dict:
         check_ffmpeg()
         return get_devices()["video"]
@@ -442,12 +444,17 @@ class MainWindow(QtWidgets.QMainWindow):
             # pop up a error message
             self.messageBox(
                 "Error",
-                f"Failed to load project: {e}",
+                f"Failed to load project: \n{e}",
                 severity="Critical",
             )
+            self.projectSettings.load(dir_path=dir, check=False)
+            self.projectSettings.repairSettings()
+            self.loadProject(self.projectSettings)
         self.refreshAllWidgets(self)
 
-    def refreshAllWidgets(self, caller: Union[QtWidgets.QDockWidget, QtWidgets.QMainWindow]):
+    def refreshAllWidgets(
+        self, caller: Union[QtWidgets.QDockWidget, QtWidgets.QMainWindow]
+    ):
         """
         Refresh all widgets except the caller widget. The caller widget is the widget that called this method and it should handle its own refresh.
 
@@ -455,7 +462,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ----------
         caller : QtWidgets.QDockWidget
             The widget that called this method.
-        """           
+        """
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
             if dockWidget != caller:
                 dockWidget.refresh()

@@ -1,7 +1,10 @@
-from PyQt6 import QtWidgets, QtCore, QtGui
 import os
-from RVM.camera.camera import Camera
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
 from RVM.bases import ProjectSettings, Trial
+from RVM.camera.camera import Camera
+
 
 class CameraPreviewWindow(QtWidgets.QMainWindow):
     def __init__(
@@ -74,7 +77,6 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
         """Overrides the default show method to preview the camera."""
         self.startPreview()
         super(CameraPreviewWindow, self).show()
-        
 
     def close(self):
         """
@@ -120,7 +122,7 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
         self.setWindowTitle(f"Animal: {self.animalId} - Box: {self.boxId}")
 
     def close(self):
-        if self.cameraWindow.trial is not None:  
+        if self.cameraWindow.trial is not None:
             if self.cameraWindow.trial.state == "Running":
                 self.closeable = False
                 confimationDialog = QtWidgets.QMessageBox()
@@ -133,7 +135,9 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
                     QtWidgets.QMessageBox.StandardButton.Yes
                     | QtWidgets.QMessageBox.StandardButton.No
                 )
-                confimationDialog.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
+                confimationDialog.setDefaultButton(
+                    QtWidgets.QMessageBox.StandardButton.No
+                )
                 ok = confimationDialog.exec()
                 if ok == QtWidgets.QMessageBox.StandardButton.Yes:
                     self.closeable = True
@@ -204,12 +208,12 @@ class CameraWindow(QtWidgets.QMainWindow):
                 save_dir = str(os.path.expanduser("~"))
         self.cam = Camera(
             camNum=self.camNum,
-            camName=f"Camera {self.camNum}",
+            camName=f"Box {self.trial.box.uid} - Animal {self.trial.animal.uid}",
             saveFolder=save_dir,
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
-            trial = self.trial,
+            trial=self.trial,
             guiWin=self,
         )
 
@@ -356,9 +360,7 @@ class CreateCameraDialog(QtWidgets.QDialog):
         # create the box id number input
         self.boxNumberComboBox = QtWidgets.QComboBox()
         self.boxNumberComboBox.setPlaceholderText("Select a box")
-        self.boxNumberComboBox.addItems(
-            [box.uid for box in self.projectSettings.boxes]
-        )
+        self.boxNumberComboBox.addItems([box.uid for box in self.projectSettings.boxes])
         # create the animal id line edit
         self.animalIdComboBox = QtWidgets.QComboBox()
         self.animalIdComboBox.setPlaceholderText("Select an animal")
@@ -398,12 +400,16 @@ class CreateCameraDialog(QtWidgets.QDialog):
         )
         box = self.projectSettings.getBoxFromId(self.boxNumberComboBox.currentText())
         if box is None:
-            self.mainWin.messageBox(title="ERROR", text="Box not Found", severity="Critical")
+            self.mainWin.messageBox(
+                title="ERROR", text="Box not Found", severity="Critical"
+            )
             return
         try:
             camera = self.mainWin.videoDevices[box.camera]
         except Exception as e:
-            self.mainWin.messageBox(title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical")
+            self.mainWin.messageBox(
+                title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
+            )
             return
         self.cameraPreviewWindow.createCamera(
             camNum=list(self.mainWin.videoDevices.values()).index(camera),
@@ -417,12 +423,16 @@ class CreateCameraDialog(QtWidgets.QDialog):
     def accept(self) -> None:
         box = self.projectSettings.getBoxFromId(self.boxNumberComboBox.currentText())
         if box is None:
-            self.mainWin.messageBox(title="ERROR", text="Box not Found", severity="Critical")
+            self.mainWin.messageBox(
+                title="ERROR", text="Box not Found", severity="Critical"
+            )
             return
         try:
             camera = self.mainWin.videoDevices[box.camera]
         except Exception as e:
-            self.mainWin.messageBox(title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical")
+            self.mainWin.messageBox(
+                title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
+            )
             return
         self.signals.finished.emit(
             CameraWindow(

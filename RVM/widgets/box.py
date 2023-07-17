@@ -1,14 +1,16 @@
 # a dock widget for the management of boxes in a project
 # updates the project settings when a box is modified
 
-from math import e
 import os
+from math import e
 from unittest import expectedFailure
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from RVM.bases import Box, BoxBase, ProjectSettings, Protocol
 from RVM.widgets.camWin import CameraPreviewWindow
+
+
 class BoxManagerDockWidgetSignals(QtCore.QObject):
     boxCreated = QtCore.pyqtSignal(Box)
     boxDeleted = QtCore.pyqtSignal(Box)
@@ -194,7 +196,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             )
             self.cameraPreviewWindow.createCamera(
                 camNum=list(self.parent.videoDevices.keys()).index(box.camera),
-                camName=f'Box {box.uid} Camera',
+                camName=f"Box {box.uid} Camera",
                 fps=30,
                 prevFPS=30,
                 recFPS=30,
@@ -453,7 +455,7 @@ class BoxDialog(QtWidgets.QDialog):
         # add the buttons to the button layout
         self.buttonLayout.addWidget(self.okButton)
         self.buttonLayout.addWidget(self.cancelButton)
-        self.buttonLayout.addWidget(self.deleteButton)      
+        self.buttonLayout.addWidget(self.deleteButton)
 
     def checkInputs(self):
         if self.currentBox is None:
@@ -466,10 +468,15 @@ class BoxDialog(QtWidgets.QDialog):
             if self.cameraComboBox.currentText() == "":
                 return False, "Please select a camera"
         if self.cameraComboBox.currentText() in [
-            self.mainWin.videoDevices[box.camera] for box in self.projectSettings.boxes
+            self.mainWin.videoDevices.get(box.camera, "")
+            for box in self.projectSettings.boxes
+            if box.uid != self.currentBox.uid
         ]:
-            return False, f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera"
-            
+            return (
+                False,
+                f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera",
+            )
+
         return True, ""
 
     def preview(self):
@@ -478,7 +485,9 @@ class BoxDialog(QtWidgets.QDialog):
         )
         try:
             self.cameraPreviewWindow.createCamera(
-                camNum=list(self.mainWin.videoDevices.values()).index(self.cameraComboBox.currentText()),
+                camNum=list(self.mainWin.videoDevices.values()).index(
+                    self.cameraComboBox.currentText()
+                ),
                 camName=self.cameraComboBox.currentText(),
                 fps=30,
                 prevFPS=30,
@@ -486,7 +495,11 @@ class BoxDialog(QtWidgets.QDialog):
             )
             self.cameraPreviewWindow.show()
         except Exception as e:
-            self.mainWin.messageBox(title="ERROR", text=f"Could Not Preview Camera\n\n{e}", severity="Critical")
+            self.mainWin.messageBox(
+                title="ERROR",
+                text=f"Could Not Preview Camera\n\n{e}",
+                severity="Critical",
+            )
             return
 
     def loadBox(self, box: Box):

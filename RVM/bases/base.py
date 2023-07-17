@@ -22,11 +22,31 @@ class AnimalBase(BaseModel):
     excluded: bool = False
     notes: str = ""
 
+    def validateAnimal(self):
+        if type(self.uid) != str or len(self.uid) == 0:
+            raise ValueError("The animal uid is invalid")
+        if type(self.genotype) != str:
+            raise ValueError("The animal genotype is invalid")
+        if type(self.alive) != bool:
+            raise ValueError("The animal alive is invalid")
+        if type(self.excluded) != bool:
+            raise ValueError("The animal excluded is invalid")
+        if type(self.notes) != str:
+            raise ValueError("The animal notes is invalid")
+
 
 class BoxBase(BaseModel):
     uid: str = ""
     camera: str = ""
     notes: str = ""
+
+    def validateBox(self):
+        if type(self.uid) != str or len(self.uid) == 0:
+            raise ValueError("The box uid is invalid")
+        if type(self.camera) != str:
+            raise ValueError("The box camera is invalid")
+        if type(self.notes) != str:
+            raise ValueError("The box notes is invalid")
 
 
 class TrialBase(BaseModel):
@@ -41,6 +61,21 @@ class TrialBase(BaseModel):
     video_location: Optional[Path] = None
     data: Optional[DataFrameType] = None
     notes: str = ""
+
+    def validateTrial(self):
+        if type(self.uid) != str or len(self.uid) == 0:
+            raise ValueError("The trial uid is invalid")
+        try:
+            if self.animal is not None:
+                self.animal.validateAnimal()
+            else:
+                raise ValueError("The trial animal is None")
+        except Exception as e:
+            raise ValueError(f"The trial animal for trial {self.uid} is invalid: {e}")
+        try:
+            self.box.validateBox()
+        except ValueError as e:
+            raise ValueError(f"The trial box for trial {self.uid} is invalid: {e}")
 
     class Config:
         arbitrary_types_allowed = True

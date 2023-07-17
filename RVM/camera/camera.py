@@ -1,28 +1,22 @@
 import datetime
-from math import e
 import os
 import sys
+from math import e
 from queue import Queue
 from typing import Dict, List
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QRectF
+from PyQt6.QtCore import (QMutex, QObject, QRectF, Qt, QThread, QTimer,
+                          pyqtSignal, pyqtSlot)
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtWidgets import (
-    QApplication,
-    QLabel,
-    QSizePolicy,
-    QMainWindow,
-    QMenuBar,
-    QStatusBar,
-    QToolBar,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
+                             QSizePolicy, QStatusBar, QToolBar, QVBoxLayout,
+                             QWidget)
 
-from RVM.camera.camThreads import previewer, vidReader, vidWriter
 from RVM.bases import Trial
+from RVM.camera.camThreads import previewer, vidReader, vidWriter
+
 
 class VideoCaptureSignals(QObject):
     status = pyqtSignal(str, bool)
@@ -143,9 +137,7 @@ class VideoDisplay(QLabel):
 
     def __init__(self, parent=None):
         super(VideoDisplay, self).__init__(parent)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(1, 1)
         self.setScaledContents(True)
@@ -197,7 +189,7 @@ class Camera(QObject):
         prevFPS: int,
         recFPS: int,
         guiWin: QMainWindow,
-        trial: Trial=None,
+        trial: Trial = None,
     ):
         super(Camera, self).__init__()
         self.guiWin = guiWin

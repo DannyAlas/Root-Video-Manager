@@ -1,1 +1,2 @@
-from RVM.devices.devices import get_ffmpeg_list, format_device_output, get_devices, check_ffmpeg
+from RVM.devices.devices import (check_ffmpeg, format_device_output,
+                                 get_devices, get_ffmpeg_list)

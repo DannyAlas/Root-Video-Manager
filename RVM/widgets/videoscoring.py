@@ -9,24 +9,19 @@ There is nothing more permanent than a temporary solution ;)
 TODO: create a mutex that will hold the cv2 capture and helper methods (i.e. a modified VideoCapture class), then extend the video player to be the thread that reads from the mutex, then the widget will be the gui that controls the video player thread. The tdt readers will be a class the gui uses to get timestamp and recording data. 
 """
 
-import os
-from PyQt6 import QtCore, QtGui, QtWidgets
-from RVM.camera.camThreads import vidAnalysis, vidReader, previewer
-import numpy as np
-from PyQt6.QtWidgets import (
-    QApplication,
-    QLabel,
-    QMainWindow,
-    QMenuBar,
-    QStatusBar,
-    QToolBar,
-    QVBoxLayout,
-    QWidget,
-)
-from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
-import cv2
 import datetime
+import os
+
+import cv2
+import numpy as np
+from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtCore import (QMutex, QObject, Qt, QThread, QTimer, pyqtSignal,
+                          pyqtSlot)
+from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
+from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
+                             QStatusBar, QToolBar, QVBoxLayout, QWidget)
+
+from RVM.camera.camThreads import previewer, vidAnalysis, vidReader
 
 
 class videoPlayerSignals(QObject):
