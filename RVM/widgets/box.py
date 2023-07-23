@@ -2,19 +2,18 @@
 # updates the project settings when a box is modified
 
 import os
-from math import e
-from unittest import expectedFailure
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from RVM.bases import Box, BoxBase, ProjectSettings, Protocol
+from RVM.bases import BoxBase, Protocol
+from RVM.settings.projectSettings import ProjectSettings
 from RVM.widgets.camWin import CameraPreviewWindow
 
 
 class BoxManagerDockWidgetSignals(QtCore.QObject):
-    boxCreated = QtCore.pyqtSignal(Box)
-    boxDeleted = QtCore.pyqtSignal(Box)
-    boxUpdated = QtCore.pyqtSignal(Box)
+    boxCreated = QtCore.pyqtSignal(BoxBase)
+    boxDeleted = QtCore.pyqtSignal(BoxBase)
+    boxUpdated = QtCore.pyqtSignal(BoxBase)
 
 
 class BoxManagerDockWidget(QtWidgets.QDockWidget):
@@ -102,8 +101,6 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         self.layout.addWidget(self.buttonWidget)
         self.layout.addWidget(self.treeWidget)
 
-        self.updateBoxList()
-
     def showContextMenu(self, pos: QtCore.QPoint):
         if self.treeWidget.currentItem() is None:
             return
@@ -138,7 +135,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         newBoxDialog.signals.okClicked.connect(self.addBox)
         newBoxDialog.show()
 
-    def addBox(self, box: Box):
+    def addBox(self, box: BoxBase):
         """
         Add a box to the project settings
 
@@ -147,7 +144,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         box : Box
             The box to add to the project settings
         """
-        self.projectSettings.boxes.append(box)
+        self.projectSettings.add_box(box)
         self.updateBoxList()
         self.parent.refreshAllWidgets(self)
         self.signals.boxCreated.emit(box)
@@ -183,8 +180,8 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
     def previewCamera(self, item):
         if type(item) == QtWidgets.QTreeWidgetItem:
             box = self.getBoxFromItem(item)
-        elif type(item) == Box or type(item) == BoxBase:
-            box = self.projectSettings.getBoxFromId(item.uid)
+        elif type(item) == BoxBase:
+            box = self.projectSettings.get_box(item.uid)
         else:
             self.parent.messageBox("Error", "Could not preview camera", "Warning")
             return
@@ -195,7 +192,9 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
                 parent=self.parent, mainWin=self.parent
             )
             self.cameraPreviewWindow.createCamera(
-                camNum=list(self.parent.videoDevices.keys()).index(box.camera),
+                camNum=list(self.projectSettings.video_devices.keys()).index(
+                    box.camera
+                ),
                 camName=f"Box {box.uid} Camera",
                 fps=30,
                 prevFPS=30,
@@ -207,7 +206,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
                 "Error", f"Could not preview camera\n\n{e}", "Warning"
             )
 
-    def updateBox(self, box: Box):
+    def updateBox(self, box: BoxBase):
         """
         Update a box in the project settings
 
@@ -216,9 +215,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         box : Box
             The box to update
         """
-        for i in range(len(self.projectSettings.boxes)):
-            if self.projectSettings.boxes[i].uid == box.uid:
-                self.projectSettings.boxes[i] = box
+        self.projectSettings.update_box(box)
 
         self.updateBoxList()
         self.parent.refreshAllWidgets(self)
@@ -237,7 +234,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
                 box = self.getBoxFromItem(item)
             except:
                 return
-        elif type(item) == Box or type(item) == BoxBase:
+        elif type(item) == BoxBase:
             box = item
         else:
             self.parent.messageBox("Error", "Could not delete box", "Warning")
@@ -250,7 +247,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         if not confim:
             return
         # remove the box from the project settings
-        self.projectSettings.boxes.remove(box)
+        self.projectSettings.delete_box(box)
         # update the box list
         self.updateBoxList()
         self.parent.updateStatus("Deleted box {}".format(box.uid))
@@ -267,7 +264,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         """
         self.treeWidget.clear()
         camerasCombo = QtWidgets.QComboBox()
-        camerasCombo.addItems(self.parent.videoDevices.values())
+        camerasCombo.addItems(self.projectSettings.video_devices.values())
 
         if protocol is None:
             for box in self.projectSettings.boxes:
@@ -309,7 +306,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # get the box id from the item
         boxId = item.text(0)
         # get the box from the project settings
-        box = self.projectSettings.getBoxFromId(boxId)
+        box = self.projectSettings.get_box(boxId)
         if box is None:
             raise Exception("Could not find box with id {}".format(boxId))
         return box
@@ -328,7 +325,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
         # get the box id from the item
         boxId = item.text(0)
         # get the box from the project settings
-        box = self.projectSettings.getBoxFromId(boxId)
+        box = self.projectSettings.get_box(boxId)
         if box is None:
             self.parent.updateStatus("Could not find box with id {}".format(boxId))
         # update the box from the item
@@ -358,7 +355,7 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             The camera name
         """
         try:
-            return self.parent.videoDevices[key]
+            return self.projectSettings.video_devices[key]
         except KeyError:
             return ""
 
@@ -377,7 +374,9 @@ class BoxManagerDockWidget(QtWidgets.QDockWidget):
             The camera key
         """
         return [
-            key for key, value in self.parent.videoDevices.items() if value == name
+            key
+            for key, value in self.projectSettings.video_devices.items()
+            if value == name
         ][0]
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
@@ -399,7 +398,7 @@ class BoxDialog(QtWidgets.QDialog):
         self.projectSettings = projectSettings
         self.signals = BoxDialogSignals()
         self.currentBox = None
-        self.parent = parent
+        self.parent: BoxManagerDockWidget = parent
         self.mainWin = mainWin
         self.initUi()
 
@@ -420,7 +419,7 @@ class BoxDialog(QtWidgets.QDialog):
 
         # create the camera combo box
         self.cameraComboBox = QtWidgets.QComboBox()
-        self.cameraComboBox.addItems(self.mainWin.videoDevices.values())
+        self.cameraComboBox.addItems(self.projectSettings.video_devices.values())
 
         # preview button
         self.previewButton = QtWidgets.QPushButton("Preview")
@@ -467,8 +466,16 @@ class BoxDialog(QtWidgets.QDialog):
                 return False, "Box ID already exists please enter a unique box ID"
             if self.cameraComboBox.currentText() == "":
                 return False, "Please select a camera"
-        if self.cameraComboBox.currentText() in [
-            self.mainWin.videoDevices.get(box.camera, "")
+            if self.cameraComboBox.currentText() in [
+                self.projectSettings.video_devices.get(box.camera)
+                for box in self.projectSettings.boxes
+            ]:
+                return (
+                    False,
+                    f"Camera '{self.cameraComboBox.currentText()}' already in use please select a different camera",
+                )
+        elif self.cameraComboBox.currentText() in [
+            self.projectSettings.video_devices.get(box.camera)
             for box in self.projectSettings.boxes
             if box.uid != self.currentBox.uid
         ]:
@@ -485,7 +492,7 @@ class BoxDialog(QtWidgets.QDialog):
         )
         try:
             self.cameraPreviewWindow.createCamera(
-                camNum=list(self.mainWin.videoDevices.values()).index(
+                camNum=list(self.projectSettings.video_devices.values()).index(
                     self.cameraComboBox.currentText()
                 ),
                 camName=self.cameraComboBox.currentText(),
@@ -502,14 +509,16 @@ class BoxDialog(QtWidgets.QDialog):
             )
             return
 
-    def loadBox(self, box: Box):
+    def loadBox(self, box: BoxBase):
         self.currentBox = box
         self.boxIdLineEdit.setText(box.uid)
         self.boxIdLineEdit.setReadOnly(True)
         self.boxIdLineEdit.setEnabled(False)
         try:
             self.cameraComboBox.setCurrentIndex(
-                self.cameraComboBox.findText(self.mainWin.videoDevices[box.camera])
+                self.cameraComboBox.findText(
+                    self.projectSettings.video_devices[box.camera]
+                )
             )
         except:
             self.cameraComboBox.setCurrentIndex(0)
@@ -529,7 +538,7 @@ class BoxDialog(QtWidgets.QDialog):
         # get the key for the selected camera
         cameraKey = [
             key
-            for key, value in self.mainWin.videoDevices.items()
+            for key, value in self.projectSettings.video_devices.items()
             if value == self.cameraComboBox.currentText()
         ]
         if cameraKey is None:
@@ -545,7 +554,7 @@ class BoxDialog(QtWidgets.QDialog):
         cameraKey = cameraKey[0]
 
         if self.currentBox is None:
-            self.currentBox = Box(
+            self.currentBox = BoxBase(
                 uid=self.boxIdLineEdit.text(),
                 camera=cameraKey,
                 notes=self.notesTextEdit.toPlainText(),
@@ -554,6 +563,5 @@ class BoxDialog(QtWidgets.QDialog):
             self.currentBox.uid = self.boxIdLineEdit.text()
             self.currentBox.camera = cameraKey
             self.currentBox.notes = self.notesTextEdit.toPlainText()
-
         self.signals.okClicked.emit(self.currentBox)
         super().accept()

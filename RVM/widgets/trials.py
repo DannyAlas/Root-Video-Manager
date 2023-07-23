@@ -186,7 +186,7 @@ class TrialManagerDockWidget(QtWidgets.QDockWidget):
             try:
                 self.addTrialToTreeWidget(trial)
             except Exception as e:
-                print(e)
+                self.parent.updateStatus(f"Error adding trial {trial.uid}: {e}")
                 continue
 
     def addTrialToTreeWidget(self, trial: Trial):
@@ -714,7 +714,7 @@ class RunTrialsDialog(QtWidgets.QDialog):
             try:
                 cameraWindow = CameraWindow(
                     parent=self.mainWin,
-                    camNum=list(self.mainWin.videoDevices.keys()).index(
+                    camNum=list(self.projectSettings.video_devices.keys()).index(
                         trial.box.camera
                     ),
                     mainWin=self.mainWin,

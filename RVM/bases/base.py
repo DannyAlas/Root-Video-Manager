@@ -1,12 +1,14 @@
 # pydantic base models for the data structures used in the RVM
-from asyncio import protocols
+import os
 from datetime import datetime
 from pathlib import Path
+from socket import gethostname
+from subprocess import check_output
 from typing import List, Literal, Optional, TypeVar
-from uuid import uuid4
+from uuid import UUID, getnode, uuid4
 
 from pandas import DataFrame
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 DataFrameType = TypeVar("DataFrameType", DataFrame, dict)
 
@@ -15,12 +17,38 @@ def uid_gen():
     return str(uuid4())
 
 
+def get_machine_name_uid():
+    """
+    Get the machine name and id
+
+    Returns
+    -------
+    dict
+        The machine name and id
+    """
+    try:
+        host_name = gethostname()
+    except Exception:
+        host_name = "Unknown"
+    try:
+        if os.name != "nt":
+            machine_id = UUID(int=getnode())
+        else:
+            machine_id = (
+                check_output("wmic csproduct get uuid").decode().split("\n")[1].strip()
+            )
+    except Exception:
+        machine_id = "Unknown"
+    return {"host_name": host_name, "machine_id": machine_id}
+
+
 class AnimalBase(BaseModel):
-    uid: str = ""
+    uid: str
     genotype: str = ""
     alive: bool = True
     excluded: bool = False
     notes: str = ""
+    deleted: bool = False
 
     def validateAnimal(self):
         if type(self.uid) != str or len(self.uid) == 0:
@@ -36,17 +64,17 @@ class AnimalBase(BaseModel):
 
 
 class BoxBase(BaseModel):
-    uid: str = ""
+    uid: str
     camera: str = ""
     notes: str = ""
+    deleted: bool = False
 
-    def validateBox(self):
-        if type(self.uid) != str or len(self.uid) == 0:
-            raise ValueError("The box uid is invalid")
-        if type(self.camera) != str:
-            raise ValueError("The box camera is invalid")
-        if type(self.notes) != str:
-            raise ValueError("The box notes is invalid")
+    # @validator('uid')
+    # def passwords_match(cls, v):
+    #     if len(v) == 0:
+    #         raise ValueError("The box uid is invalid")
+    #     if not v.isalnum():
+    #         raise ValueError("The box uid is invalid")
 
 
 class TrialBase(BaseModel):
@@ -55,12 +83,14 @@ class TrialBase(BaseModel):
     box: Optional[BoxBase]
     protocol: Optional[str] = None
     state: Literal["Waiting", "Running", "Finished", "Stopped", "Failed"] = "Waiting"
+    created: datetime = Field(default_factory=datetime.now)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     original_data_location: Optional[Path] = None
     video_location: Optional[Path] = None
     data: Optional[DataFrameType] = None
     notes: str = ""
+    deleted: bool = False
 
     def validateTrial(self):
         if type(self.uid) != str or len(self.uid) == 0:
@@ -81,23 +111,25 @@ class TrialBase(BaseModel):
         arbitrary_types_allowed = True
 
 
-class ProtocalBase(BaseModel):
+class ProtocolBase(BaseModel):
     uid: str = ""
     description: Optional[str] = None
     animals: List[AnimalBase] = []
     boxes: List[BoxBase] = []
     trials: List[TrialBase] = []
+    deleted: bool = False
 
 
 class ProjectSettingsBase(BaseModel):
     uid: str = Field(default_factory=uid_gen)
-    project_name: str = ""
+    host: dict = Field(default_factory=get_machine_name_uid, alias="host")
     created: datetime = Field(default_factory=datetime.now)
-    project_location: Path = Path.cwd()
+    project_name: str = ""
+    project_location: Path = ""
     window_size: tuple[int, int] = (1280, 720)
     window_position: tuple[int, int] = (0, 0)
     video_devices: dict[str, str] = {}
-    protocols: list[ProtocalBase] = []
+    protocols: list[ProtocolBase] = []
     animals: list[AnimalBase] = []
     trials: list[TrialBase] = []
     boxes: list[BoxBase] = []

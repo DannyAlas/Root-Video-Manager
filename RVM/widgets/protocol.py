@@ -8,7 +8,7 @@ from wsgiref import validate
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from RVM.bases import (Animal, Box, ProjectSettings, ProtocalBase, Protocol,
+from RVM.bases import (Animal, Box, ProjectSettings, Protocol, ProtocolBase,
                        Trial)
 
 

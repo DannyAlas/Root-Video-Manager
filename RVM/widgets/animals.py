@@ -122,21 +122,15 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         # get the animal id from the item
         uid = item.text(0)
         # get the animal from the project settings
-        animal = [
-            animal for animal in self.projectSettings.animals if animal.uid == uid
-        ]
+        animal = self.projectSettings.get_animal(uid)
         if animal is None:
-            self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(uid)
-            )
+            self.parent.updateStatus("Could not find animal with id {}".format(uid))
             return
         if len(animal) == 0:
-            self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(uid)
-            )
+            self.parent.updateStatus("Could not find animal with id {}".format(uid))
             return
         if len(animal) > 1:
-            self.parent.statusBar.showMessage("Multiple animals with id {}".format(uid))
+            self.parent.updateStatus("Multiple animals with id {}".format(uid))
 
         animal = animal[0]
         # update the animal from the item
@@ -151,28 +145,14 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         animalDialog.signals.okClicked.connect(self.addAnimal)
 
     def editAnimal(self, item: QtWidgets.QTreeWidgetItem, column: int):
-        self.parent.statusBar.showMessage("Editing animal {}".format(item.text(0)))
+        self.parent.updateStatus("Editing animal {}".format(item.text(0)))
         # load the animal from the project settings
-        animal = [
-            animal
-            for animal in self.projectSettings.animals
-            if animal.uid == item.text(0)
-        ]
+        animal = self.projectSettings.get_animal(item.text(0))
         if animal is None:
-            self.parent.statusBar.showMessage(
+            self.parent.updateStatus(
                 "Could not find animal with id {}".format(item.text(0))
             )
             return
-        if len(animal) == 0:
-            self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(item.text(0))
-            )
-            return
-        if len(animal) > 1:
-            self.parent.statusBar.showMessage(
-                "Multiple animals with id {}".format(item.text(0))
-            )
-        animal = animal[0]
         # create an instance of the animal dialog
         animalDialog = AnimalDialog(self.projectSettings, self)
         animalDialog.loadAnimal(animal)
@@ -181,23 +161,20 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
 
     def updateAnimal(self, animal: Animal):
         # update the animal in the project settings
-        for i, a in enumerate(self.projectSettings.animals):
-            if a.uid == animal.uid:
-                self.projectSettings.animals[i] = animal
-                break
+        self.projectSettings.update_animal(animal)
         # update the animal in the tree widget
         self.addAnimals()
         self.parent.refreshAllWidgets(self)
 
     def addAnimal(self, animal: Animal):
         # add the animal to the project settings
-        self.projectSettings.animals.append(animal)
+        self.projectSettings.add_animal(animal)
         # add the animal to the tree widget
         self.addAnimals()
         self.parent.refreshAllWidgets(self)
 
     def deleteAnimal(self, item: QtWidgets.QTreeWidgetItem, column: int):
-        self.parent.statusBar.showMessage("Deleting animal {}".format(item.text(0)))
+        self.parent.updateStatus("Deleting animal {}".format(item.text(0)))
         # dialog to confirm deletion
         msgBox = QtWidgets.QMessageBox()
         msgBox.setText(f"Are you sure you want to delete \n{item.text(0)}?")
@@ -214,27 +191,23 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
         ret = msgBox.exec()
         if ret == QtWidgets.QMessageBox.StandardButton.No:
-            self.parent.statusBar.showMessage(
+            self.parent.updateStatus(
                 "Canceled deletion of animal {}".format(item.text(0))
             )
             return
         # get the animal id from the item
         uid = item.text(0)
         # get the animal from the project settings
-        animal = [
-            animal for animal in self.projectSettings.animals if animal.uid == uid
-        ][0]
+        animal = self.projectSettings.get_animal(uid)
         if animal is None:
-            self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(uid)
-            )
+            self.parent.updateStatus("Could not find animal with id {}".format(uid))
         # remove the animal from the project settings
-        self.projectSettings.animals.remove(animal)
+        self.projectSettings.delete_animal(animal)
         # remove the animal from the tree widget
         self.treeWidget.takeTopLevelItem(self.treeWidget.indexOfTopLevelItem(item))
 
     def deleteAnimals(self):
-        self.parent.statusBar.showMessage("Deleting animals")
+        self.parent.updateStatus("Deleting animals")
 
         # get all of the selected items
         selectedItems = self.treeWidget.selectedItems()
@@ -257,7 +230,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
         msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
         ret = msgBox.exec()
         if ret == QtWidgets.QMessageBox.StandardButton.No:
-            self.parent.statusBar.showMessage("Canceled deletion of animals")
+            self.parent.updateStatus("Canceled deletion of animals")
             return
 
         # loop through the selected items
@@ -265,16 +238,12 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
             # get the animal id from the item
             uid = item.text(0)
             # get the animal from the project settings
-            animal = [
-                animal for animal in self.projectSettings.animals if animal.uid == uid
-            ][0]
+            animal = self.projectSettings.get_animal(uid)
             if animal is None:
-                self.parent.statusBar.showMessage(
-                    "Could not find animal with id {}".format(uid)
-                )
+                self.parent.updateStatus("Could not find animal with id {}".format(uid))
                 continue
             # remove the animal from the project settings
-            self.projectSettings.animals.remove(animal)
+            self.projectSettings.delete_animal(animal)
             # remove the animal from the tree widget
             self.treeWidget.takeTopLevelItem(self.treeWidget.indexOfTopLevelItem(item))
 

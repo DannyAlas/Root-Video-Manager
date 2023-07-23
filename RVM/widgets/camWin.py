@@ -405,14 +405,14 @@ class CreateCameraDialog(QtWidgets.QDialog):
             )
             return
         try:
-            camera = self.mainWin.videoDevices[box.camera]
+            camera = self.projectSettings.video_devices[box.camera]
         except Exception as e:
             self.mainWin.messageBox(
                 title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
             )
             return
         self.cameraPreviewWindow.createCamera(
-            camNum=list(self.mainWin.videoDevices.values()).index(camera),
+            camNum=list(self.projectSettings.video_devices.values()).index(camera),
             camName=camera,
             fps=30,
             prevFPS=30,
@@ -428,7 +428,7 @@ class CreateCameraDialog(QtWidgets.QDialog):
             )
             return
         try:
-            camera = self.mainWin.videoDevices[box.camera]
+            camera = self.projectSettings.video_devices[box.camera]
         except Exception as e:
             self.mainWin.messageBox(
                 title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
@@ -437,7 +437,7 @@ class CreateCameraDialog(QtWidgets.QDialog):
         self.signals.finished.emit(
             CameraWindow(
                 parent=self.mainWin,
-                camNum=list(self.mainWin.videoDevices.values()).index(camera),
+                camNum=list(self.projectSettings.video_devices.values()).index(camera),
                 mainWin=self.mainWin,
                 boxId=self.boxNumberComboBox.currentText(),
                 animalId=self.animalIdComboBox.currentText(),
