@@ -15,11 +15,18 @@ import os
 import cv2
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import (QMutex, QObject, Qt, QThread, QTimer, pyqtSignal,
-                          pyqtSlot)
+from PyQt6.QtCore import QMutex, QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
-                             QStatusBar, QToolBar, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QStatusBar,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from RVM.camera.camThreads import previewer, vidAnalysis, vidReader
 

@@ -6,8 +6,13 @@ import subprocess
 from tkinter import E
 from wsgiref import validate
 
-from RVM.bases.base import (AnimalBase, BoxBase, ProjectSettingsBase,
-                            ProtocolBase, TrialBase)
+from RVM.bases.base import (
+    AnimalBase,
+    BoxBase,
+    ProjectSettingsBase,
+    ProtocolBase,
+    TrialBase,
+)
 
 
 class Protocol(ProtocolBase):

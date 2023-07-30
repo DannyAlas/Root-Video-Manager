@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: PyQt6-stubs
+Version: 6.2.3.1
+Summary: PEP561 stub files for the PyQt6 framework
+Home-page: https://github.com/TilmanK/PyQt6-stubs
+Author: Tilman Krummeck
+Maintainer-email: tilman@krummeck.de
+Requires-Python: >= 3.6

@@ -8,8 +8,8 @@ from wsgiref import validate
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from RVM.bases import (Animal, Box, ProjectSettings, Protocol, ProtocolBase,
-                       Trial)
+from RVM.bases import Animal, Box, Protocol, ProtocolBase, Trial
+from RVM.settings import ProjectSettings
 
 
 class ProtocolManagerDockWidget(QtWidgets.QDockWidget):

@@ -7,12 +7,28 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import (QMutex, QObject, QRectF, Qt, QThread, QTimer,
-                          pyqtSignal, pyqtSlot)
+from PyQt6.QtCore import (
+    QMutex,
+    QObject,
+    QRectF,
+    Qt,
+    QThread,
+    QTimer,
+    pyqtSignal,
+    pyqtSlot,
+)
 from PyQt6.QtGui import QAction, QIcon, QImage, QPixmap
-from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
-                             QSizePolicy, QStatusBar, QToolBar, QVBoxLayout,
-                             QWidget)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QSizePolicy,
+    QStatusBar,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from RVM.bases import Trial
 from RVM.camera.camThreads import previewer, vidReader, vidWriter
@@ -29,7 +45,7 @@ class VideoCapture(QMutex):
         self, camNum: int, cameraName: str, fps: int, prevFPS: int, recFPS: int
     ):
         super(VideoCapture, self).__init__()
-        # this is to get around some weirdness with the QMutex ids
+        # this internal id is to get around some weirdness with the QMutex ids
         # TODO: test if this is still necessary MIGHT NOT BE
         self._id = id(self)
         self.camNum = camNum
@@ -189,7 +205,6 @@ class Camera(QObject):
         prevFPS: int,
         recFPS: int,
         guiWin: QMainWindow,
-        trial: Trial = None,
     ):
         super(Camera, self).__init__()
         self.guiWin = guiWin
@@ -199,8 +214,6 @@ class Camera(QObject):
         self.fps = fps
         self.prevFPS = prevFPS
         self.recFPS = recFPS
-
-        self.trial = trial
 
         self.fileName = None
 
@@ -219,10 +232,6 @@ class Camera(QObject):
 
         self.ext = ".avi"
 
-        if not os.path.isdir(saveFolder):
-            self.saveFolder = os.path.join(os.path.expanduser("~"), "Desktop")
-        else:
-            self.saveFolder = saveFolder
         self.resetVidStats()
 
         self.vc = None
@@ -271,17 +280,17 @@ class Camera(QObject):
         self.startReader()  # this only starts the reader if we're not already recording
         self.startPreviewer()
 
-    def startRecording(self) -> None:
+    def startRecording(self, filename) -> None:
         """start recording a video"""
         if not self.deviceOpen:
             self.updateStatus(f"Opening {self.camName} preview...")
             self.createVC()
         if self.writing:
-            if not self.writeWarning:
-                self.writeWarning = True
-            QTimer.singleShot(50, self.startRecording)  # stop previewing and recording
+            self.updateStatus(f"Already recording {self.fileName}", True)
+            return
+            # QTimer.singleShot(50, self.startRecording)  # stop previewing and recording
         else:
-            self.createWriter()
+            self.createWriter(filename)
 
     def startReader(self) -> None:
         """start updating preview or recording"""
@@ -343,9 +352,6 @@ class Camera(QObject):
             return ""
         try:
             self.saveFolder = str(self.saveFolder)
-            if not os.path.exists(self.saveFolder):
-                os.makedirs(self.saveFolder)
-            print(f"save folder: {self.saveFolder}")
             # datetime.datetime.now format as YYYY-MM-DD_HHMMSS
             fn = (
                 os.path.abspath(self.saveFolder)
@@ -365,14 +371,13 @@ class Camera(QObject):
             return fullfn
         except Exception as e:
             print(f"Error getting filename: {e}")
-            return "UNKNOWN"
 
-    def createWriter(self) -> None:
+    def createWriter(self, filename) -> None:
         """create a videoWriter object"""
-        if self.fileName is None:
-            raise ValueError("No filename specified")
-        if self.trial is None:
-            raise ValueError("No trial specified")
+        self.filename = filename
+        assert os.path.exists(
+            os.path.dirname(self.fileName)
+        ), f"Save location: {self.fileName} does not exist"
 
         self.writeWarning = False
         self.recording = True

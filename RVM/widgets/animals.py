@@ -4,7 +4,8 @@ import os
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from RVM.bases import Animal, ProjectSettings
+from RVM.bases import Animal
+from RVM.settings import ProjectSettings
 
 
 class AnimalManagerDockWidget(QtWidgets.QDockWidget):

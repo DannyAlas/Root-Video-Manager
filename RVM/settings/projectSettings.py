@@ -7,24 +7,20 @@ import os
 from turtle import st
 from zipfile import ZipFile
 
-from RVM.bases.models import (AnimalBase, BoxBase, ProjectSettingsBase,
-                              ProtocolBase, TrialBase)
+from RVM.bases.models import (
+    AnimalBase,
+    BoxBase,
+    ProjectSettingsBase,
+    ProtocolBase,
+    TrialBase,
+)
 
 from .utils import singleton
 
 
-@singleton
 class ProjectSettings:
     def __init__(self) -> None:
-        # explicitly set the class name to ProjectSettings
-        self.__class__.__name__ = "ProjectSettings"
         self.modified = False
-        self.default_save_file = os.path.join(
-            os.path.expanduser("~"), "Documents", "Root Video Manager", "temp.rvmx"
-        )
-        self.project_settings = ProjectSettingsBase(
-            project_location=self.default_save_file
-        )
 
     def _get_settings_from_file(self, file_path: str):
         """Get the settings from a file
@@ -119,20 +115,20 @@ class ProjectSettings:
         project_location : str
             The location of the project
         """
-        self.save(self.project_settings.project_location)
+        if hasattr(self, "project_settings"):
+            self.save(self.project_settings.project_location)
+            del self.project_settings
 
         project_location = os.path.abspath(project_location)
         if not os.path.exists(os.path.dirname(project_location)):
             raise ValueError("The project location does not exist")
 
-        if self.project_settings:
-            del self.project_settings
-
         self.project_settings = ProjectSettingsBase(
-            project_name=project_name, project_location=project_location
+            project_name=project_name,
+            project_location=os.path.abspath(project_location),
         )
 
-    def load(self, file_path: str):
+    def load(self, file_path):
         """Load the settings from a file. The file can be a .rvmx file or a settings.json file
 
         Parameters
@@ -143,6 +139,7 @@ class ProjectSettings:
         settings = self._get_settings_from_file(file_path)
 
         self.project_settings = self.validate_settings(settings)
+        self.project_settings.project_location = os.path.abspath(file_path)
         self.modified = False
 
         return self
@@ -186,18 +183,9 @@ class ProjectSettings:
     def save(self, file_path: str):
         """Save the settings to a .rvmx file"""
 
-        # if we're saving to the default save location, then then ensure that the location exists
-        if os.path.abspath(file_path) == os.path.abspath(self.default_save_file):
-            if not os.path.exists(os.path.dirname(file_path)):
-                os.makedirs(os.path.dirname(file_path))
-
         if self.modified == False:
             return True
-
         file_path = os.path.abspath(file_path)
-        # if the file path is the default save location, then ensure that the location exists
-        if file_path == self.default_save_file:
-            return True
 
         if not file_path.endswith(".rvmx"):
             raise ValueError("The file path must end with .rvmx")
@@ -217,7 +205,7 @@ class ProjectSettings:
         the_class = stack[1][0].f_locals["self"].__class__.__name__
         if not the_class == "ProjectSettings":
             raise AttributeError(
-                f"CALLER: {the_class}\nSETTING: {name} = {value}\nCannot set attributes directly, use the getters and setters"
+                f"\nCannot set attributes directly, use the getters and setters\nCALLER: {the_class}\n\TRIED TO SET: {name} = {value}\n\tSTACK TRACE: {[i[3] for i in stack]}"
             )
 
         super().__setattr__(name, value)
@@ -249,7 +237,11 @@ class ProjectSettings:
         self.project_settings.project_location = value
 
     @property
-    def window_size(self):
+    def window_size(self) -> tuple[int, int]:
+        if self.project_settings.window_size is None or not all(
+            [i > 0 for i in self.project_settings.window_size]
+        ):
+            return (800, 600)
         return self.project_settings.window_size
 
     def set_window_size(self, value):
@@ -258,6 +250,10 @@ class ProjectSettings:
 
     @property
     def window_position(self):
+        if self.project_settings.window_position is None or not all(
+            [i > 0 for i in self.project_settings.window_position]
+        ):
+            return (0, 0)
         return self.project_settings.window_position
 
     def set_window_position(self, value):
@@ -267,6 +263,16 @@ class ProjectSettings:
     @property
     def video_devices(self):
         return self.project_settings.video_devices
+
+    @property
+    def video_location(self):
+        return self.project_settings.video_location
+
+    def set_video_location(self, value):
+        self.modified = True
+        if not os.path.exists(os.path.dirname(value)):
+            raise ValueError("The video location does not exist")
+        self.project_settings.video_location = value
 
     @property
     def protocols(self):
@@ -301,6 +307,7 @@ class ProjectSettings:
             raise ValueError("The box must be of type BoxBase")
         if box not in self.project_settings.boxes:
             self.project_settings.boxes.append(box)
+        self.save(self.project_settings.project_location)
 
     def get_box(self, uid: str):
         self.modified = True
@@ -317,6 +324,7 @@ class ProjectSettings:
             if b.uid == box.uid:
                 self.project_settings.boxes[i] = box
                 break
+        self.save(self.project_settings.project_location)
 
     def delete_box(self, uid: str):
         """Does not delete box, just marks it as deleted"""
@@ -325,6 +333,7 @@ class ProjectSettings:
             if box.uid == uid:
                 self.project_settings.boxes[i].deleted = True
                 break
+        self.save(self.project_settings.project_location)
 
     def add_animal(self, animal: AnimalBase):
         self.modified = True
@@ -332,6 +341,7 @@ class ProjectSettings:
             raise ValueError("The animal must be of type AnimalBase")
         if animal not in self.project_settings.animals:
             self.project_settings.animals.append(animal)
+        self.save(self.project_settings.project_location)
 
     def get_animal(self, uid: str):
         self.modified = True
@@ -348,6 +358,7 @@ class ProjectSettings:
             if a.uid == animal.uid:
                 self.project_settings.animals[i] = animal
                 break
+        self.save(self.project_settings.project_location)
 
     def delete_animal(self, uid: str):
         """Does not delete animal, just marks it as deleted"""
@@ -356,10 +367,39 @@ class ProjectSettings:
             if animal.uid == uid:
                 self.project_settings.animals[i].deleted = True
                 break
+        self.save(self.project_settings.project_location)
+
+    def get_trial(self, uid: str):
+        self.modified = True
+        for trial in self.project_settings.trials:
+            if trial.uid == uid:
+                return trial
+        return None
+
+    def add_trial(self, trial: TrialBase):
+        self.modified = True
+        if not isinstance(trial, TrialBase):
+            raise ValueError("The trial must be of type TrialBase")
+        if trial not in self.project_settings.trials:
+            self.project_settings.trials.append(trial)
+
+    def update_trial(self, trial: TrialBase):
+        self.modified = True
+        if not isinstance(trial, TrialBase):
+            raise ValueError("The trial must be of type TrialBase")
+        for i, t in enumerate(self.project_settings.trials):
+            if t.uid == trial.uid:
+                self.project_settings.trials[i] = trial
+                break
 
     def add_video_device(self, name: str, uid: str):
         self.modified = True
         self.project_settings.video_devices[name] = uid
+
+
+def get_project_settings():
+    # returns singleton instance of project settings
+    return ProjectSettings
 
 
 """

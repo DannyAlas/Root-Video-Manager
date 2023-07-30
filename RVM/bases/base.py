@@ -8,6 +8,7 @@ from typing import List, Literal, Optional, TypeVar
 from uuid import UUID, getnode, uuid4
 
 from pandas import DataFrame
+
 from pydantic import BaseModel, Field
 
 DataFrameType = TypeVar("DataFrameType", DataFrame, dict)
@@ -79,8 +80,8 @@ class BoxBase(BaseModel):
 
 class TrialBase(BaseModel):
     uid: str = Field(default_factory=uid_gen)
-    animal: Optional[AnimalBase]
-    box: Optional[BoxBase]
+    animal: AnimalBase
+    box: BoxBase
     protocol: Optional[str] = None
     state: Literal["Waiting", "Running", "Finished", "Stopped", "Failed"] = "Waiting"
     created: datetime = Field(default_factory=datetime.now)
@@ -88,7 +89,7 @@ class TrialBase(BaseModel):
     end_time: Optional[datetime] = None
     original_data_location: Optional[Path] = None
     video_location: Optional[Path] = None
-    data: Optional[DataFrameType] = None
+    data: Optional[DataFrameType] = None  # type: ignore
     notes: str = ""
     deleted: bool = False
 
@@ -125,7 +126,8 @@ class ProjectSettingsBase(BaseModel):
     host: dict = Field(default_factory=get_machine_name_uid, alias="host")
     created: datetime = Field(default_factory=datetime.now)
     project_name: str = ""
-    project_location: Path = ""
+    project_location: Path
+    video_location: Optional[Path] = None
     window_size: tuple[int, int] = (1280, 720)
     window_position: tuple[int, int] = (0, 0)
     video_devices: dict[str, str] = {}

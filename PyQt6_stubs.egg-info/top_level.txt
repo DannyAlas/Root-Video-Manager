@@ -1,0 +1,4 @@
+PyQt6-stubs
+PyQt6-stubs/uic
+PyQt6-stubs/uic/Compiler
+PyQt6-stubs/uic/Loader

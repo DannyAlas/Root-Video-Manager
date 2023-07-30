@@ -1,10 +1,10 @@
 import os
 from typing import Literal, Union
 
-from devices import check_ffmpeg, get_devices
+from RVM.devices import check_ffmpeg, get_devices
 from PyQt6 import QtCore, QtGui, QtWidgets
-from settings import ProjectSettings
-from widgets import *
+from RVM.settings import ProjectSettings
+from RVM.widgets import *
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -12,7 +12,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__()
         self.setWindowTitle("Root Video Manager")
         self.qtsettings = QtCore.QSettings("RVM", "RVM")
-        self.projectSettings = ProjectSettings()
+        self.projectSettings = None
         self.iconsDir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "icons", "dark"
         )
@@ -27,8 +27,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar.showMessage("Ready")
 
         self.initSettings()
-        self.initUI()
-        self.initMenus()
+        if self.projectSettings is None:
+            self.NewProjectDialog()
+        else:
+            self.initUI()
+            self.initMenus()
 
     def initUI(self):
         # create toolbar
@@ -115,32 +118,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fileMenu.addAction(self.settingsAction)
         self.viewMenu = self.menuBar.addMenu("View")
 
-        # allow dock widgets to be moved
-        self.setDockOptions(
-            QtWidgets.QMainWindow.DockOption.AllowTabbedDocks
-            | QtWidgets.QMainWindow.DockOption.AllowNestedDocks
-        )
         self.createDockWidgets()
 
     def initSettings(self):
         latest_project_location = self.qtsettings.value("latest_project_location")
         if latest_project_location is not None:
             try:
-                self.projectSettings.load(latest_project_location)
-                print("Loaded the latest project settings")
+                self.projectSettings = ProjectSettings().load(latest_project_location)
+                self.loadProject()
                 self.updateStatus(
                     f"Loaded the latest project settings for {self.projectSettings.project_name}"
                 )
+                self.initDevices()
+                return True
             except:
                 self.updateStatus("Failed to load the latest project settings")
-        try:
-            self.loadProject()
-            self.updateStatus(
-                f"Loaded the latest project settings for {self.projectSettings.project_name}"
-            )
-        except:
-            self.updateStatus("Failed to load the project settings")
-        self.initDevices()
+                self.projectSettings = None
+                return False
+        else:
+            self.projectSettings = None
+            return False
 
     def initDevices(self):
         to_del = []
@@ -159,14 +156,14 @@ class MainWindow(QtWidgets.QMainWindow):
         for key, val in video_devices.items():
             self.projectSettings.add_video_device(key, val)
 
-        print(self.projectSettings.video_devices)
-
         self.refreshAllWidgets(self)
 
     def initMenus(self):
         # a layout menu in the view menu
         self.layoutMenu = QtWidgets.QMenu("Layout", self)
         self.viewMenu.addMenu(self.layoutMenu)
+        self.viewMenu.addSeparator()
+        self.viewMenu.addAction("Refresh", self.reloadProject)
 
         # to the layout menu, add a oraganize videos action
         self.organizeVideosAction = QtGui.QAction("Recording", self)
@@ -241,7 +238,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # closes all the dock widgets except for the CameraWindowDockWidgets
         for dw in self.findChildren(QtWidgets.QDockWidget):
             if not isinstance(dw, CameraWindowDockWidget):
-                dw.close()
+                # isinstance should infer type, but mypy is not happy
+                dw: QtWidgets.QDockWidget
+                dw.setVisible(False)
         # get the grid layout of the CameraWindowDockWidgets
         grid = self.getCameraWindowGrid()
         if grid is not None:
@@ -266,161 +265,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def getVideoDevices(self) -> dict:
         check_ffmpeg()
         return get_devices()["video"]
-
-    def initUI(self):
-        # create toolbar
-        self.toolbar = QtWidgets.QToolBar()
-        self.toolbar.setMovable(False)
-        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
-
-        self.newProjectButton = QtWidgets.QToolButton()
-        self.newProjectButton.clicked.connect(self.NewProjectDialog)
-        self.newProjectButton.setToolTip("Create a new project")
-        self.newProjectButton.setIcon(
-            QtGui.QIcon(os.path.join(self.iconsDir, "new-document.png"))
-        )
-        self.newProjectButton.setText("New Project")
-        self.newProjectButton.setToolButtonStyle(
-            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        )
-        self.toolbar.addWidget(self.newProjectButton)
-
-        # add a open project button
-        self.openProjectButton = QtWidgets.QToolButton()
-        self.openProjectButton.clicked.connect(self.openExistingProject)
-        self.openProjectButton.setToolTip("Open a project")
-        self.openProjectButton.setIcon(
-            QtGui.QIcon(os.path.join(self.iconsDir, "open-document.png"))
-        )
-        self.openProjectButton.setText("Open Project")
-        self.openProjectButton.setToolButtonStyle(
-            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        )
-        self.toolbar.addWidget(self.openProjectButton)
-
-        # save project button
-        self.saveProjectButton = QtWidgets.QToolButton()
-        self.saveProjectButton.clicked.connect(self.saveSettings)
-        self.saveProjectButton.setToolTip("Save the project")
-        self.saveProjectButton.setIcon(
-            QtGui.QIcon(os.path.join(self.iconsDir, "diskette.png"))
-        )
-        self.saveProjectButton.setText("Save Project")
-        self.saveProjectButton.setToolButtonStyle(
-            QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        )
-        self.toolbar.addWidget(self.saveProjectButton)
-
-        # add vertical spacer
-        spacer = QtWidgets.QWidget()
-        spacer.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Expanding,
-            QtWidgets.QSizePolicy.Policy.Expanding,
-        )
-        self.toolbar.addWidget(spacer)
-
-        # add button for CreateCameraDialog
-        # self.addCameraButton = QtWidgets.QToolButton()
-        # self.addCameraButton.clicked.connect(self.OpenCreateCameraDialog)
-        # self.addCameraButton.setToolTip("Add a new camera")
-        # self.addCameraButton.setIcon(
-        #     QtGui.QIcon(os.path.join(self.iconsDir, "add.png"))
-        # )
-        # self.addCameraButton.setText("Add Camera")
-        # self.addCameraButton.setToolButtonStyle(
-        #     QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        # )
-        # self.toolbar.addWidget(self.addCameraButton)
-
-        # self.previewAllCamerasButton = QtWidgets.QToolButton()
-        # self.previewAllCamerasButton.clicked.connect(self.previewAllCameras)
-        # self.previewAllCamerasButton.setToolTip("Preview all cameras")
-        # self.previewAllCamerasButton.setIcon(
-        #     QtGui.QIcon(os.path.join(self.iconsDir, "camera.png"))
-        # )
-        # self.previewAllCamerasButton.setText("Preview All")
-        # self.previewAllCamerasButton.setToolButtonStyle(
-        #     QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        # )
-        # self.toolbar.addWidget(self.previewAllCamerasButton)
-
-        # self.recordAllCamerasButton = QtWidgets.QToolButton()
-        # self.recordAllCamerasButton.clicked.connect(self.recordAllCameras)
-        # self.recordAllCamerasButton.setToolTip("Record all cameras")
-        # self.recordAllCamerasButton.setIcon(
-        #     QtGui.QIcon(os.path.join(self.iconsDir, "cam-recorder.png"))
-        # )
-        # self.recordAllCamerasButton.setText("Record All")
-        # self.recordAllCamerasButton.setToolButtonStyle(
-        #     QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        # )
-        # self.toolbar.addWidget(self.recordAllCamerasButton)
-
-        # self.stopAllCamerasButton = QtWidgets.QToolButton()
-        # self.stopAllCamerasButton.clicked.connect(self.stopAllCameras)
-        # self.stopAllCamerasButton.setToolTip("Stop all cameras")
-        # self.stopAllCamerasButton.setIcon(
-        #     QtGui.QIcon(os.path.join(self.iconsDir, "stop-record.png"))
-        # )
-        # self.stopAllCamerasButton.setText("Stop All")
-        # self.stopAllCamerasButton.setToolButtonStyle(
-        #     QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
-        # )
-        # self.toolbar.addWidget(self.stopAllCamerasButton)
-
-        # add a combobox and add button next to it for protocols
-        # self.protocolComboBox = QtWidgets.QComboBox()
-        # for protocol in self.projectSettings.protocols:
-        #     self.protocolComboBox.addItem(protocol.uid)
-        # self.protocolComboBox.currentTextChanged.connect(self.protocolChanged)
-        # self.toolbar.addWidget(self.protocolComboBox)
-        # self.addProtocolButton = QtWidgets.QToolButton()
-        # self.addProtocolButton.clicked.connect(self.addProtocol)
-        # self.addProtocolButton.setToolTip("Add a new protocol")
-        # self.addProtocolButton.setIcon(
-        #     QtGui.QIcon(os.path.join(self.iconsDir, "add.png"))
-        # )
-        # self.toolbar.addWidget(self.addProtocolButton)
-
-        # add settings button
-        self.settingsButton = QtWidgets.QToolButton()
-        self.settingsButton.clicked.connect(self.settingsWindow)
-        self.settingsButton.setToolTip("Settings")
-        self.settingsButton.setIcon(
-            QtGui.QIcon(os.path.join(self.iconsDir, "settings.png"))
-        )
-        self.toolbar.addSeparator()
-        spacer = QtWidgets.QWidget()
-        spacer.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Expanding,
-            QtWidgets.QSizePolicy.Policy.Expanding,
-        )
-        self.toolbar.addWidget(spacer)
-        self.toolbar.addWidget(self.settingsButton)
-
-        # menu bar
-        self.menuBar = self.menuBar()
-        self.fileMenu = self.menuBar.addMenu("File")
-        self.saveProjectAction = QtGui.QAction("Save Project", self)
-        self.saveProjectAction.triggered.connect(self.saveSettings)
-        self.fileMenu.addAction(self.saveProjectAction)
-        self.newProjectAction = QtGui.QAction("New Project", self)
-        self.newProjectAction.triggered.connect(self.NewProjectDialog)
-        self.fileMenu.addAction(self.newProjectAction)
-        self.openProjectAction = QtGui.QAction("Open Project", self)
-        self.openProjectAction.triggered.connect(self.openExistingProject)
-        self.fileMenu.addAction(self.openProjectAction)
-        self.settingsAction = QtGui.QAction("Project Settings", self)
-        self.settingsAction.triggered.connect(self.settingsWindow)
-        self.fileMenu.addAction(self.settingsAction)
-        self.viewMenu = self.menuBar.addMenu("View")
-
-        # allow dock widgets to be moved
-        self.setDockOptions(
-            QtWidgets.QMainWindow.DockOption.AllowTabbedDocks
-            | QtWidgets.QMainWindow.DockOption.AllowNestedDocks
-        )
-        self.createDockWidgets()
 
     def OpenCreateCameraDialog(self):
         self.createCameraDialog = CreateCameraDialog(
@@ -517,8 +361,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def NewProjectDialog(self):
         # create a new project window
-        self.newPrjDiag = NewProjectDialog(parent=self)
-        self.newPrjDiag.signals.complete.connect(self.reloadProject)
+        self.newPrjDiag = NewProjectDialog(
+            projectSettings=self.projectSettings, parent=self
+        )
+        self.newPrjDiag.signals.openExistingProject.connect(self.openExistingProject)
+        self.newPrjDiag.signals.complete.connect(self.initNewProject)
         self.newPrjDiag.show()
 
     def openExistingProject(self):
@@ -536,7 +383,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.updateStatus("No project selected")
             return
         try:
-            self.projectSettings.load(dir)
+            self.projectSettings = ProjectSettings().load(dir)
             self.loadProject()
         except Exception as e:
             # pop up a error message
@@ -553,8 +400,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     f"Failed to load default project settings: \n{e}",
                     severity="Critical",
                 )
-                self.projectSettings = ProjectSettings()
-            # self.projectSettings.repairSettings()
             self.loadProject()
         self.refreshAllWidgets(self)
 
@@ -571,21 +416,20 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
             if dockWidget != caller:
+                print(f"refreshing dock widget: {dockWidget}")
                 dockWidget.refresh()
 
     def settingsWindow(self):
-        self.newSettingsWindow = ProjectSettingsDialog(parent=self)
+        self.newSettingsWindow = ProjectSettingsDialog(
+            projectSettings=self.projectSettings, parent=self
+        )
         self.newSettingsWindow.signals.complete.connect(self.reloadProject)
         self.newSettingsWindow.show()
 
-    def initNewProject(self, name, location):
+    def initNewProject(self, projectSettings: ProjectSettings):
         # create a new project
-        self.projectSettings.createNewProject(
-            project_name=name, project_location=location
-        )
-        # create a settings json file for the project
-        self.projectSettings.save(self.projectSettings.project_location)
-        self.initSettings()
+        self.projectSettings = projectSettings
+        self.reloadProject()
 
     def loadProject(self):
         self.window().setWindowTitle(
@@ -600,11 +444,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.projectSettings.window_position[1],
         )
 
-    def reloadProject(self):
+    def reloadProject(self, *args):
+        if self.projectSettings is None:
+            return
+        print("reloading project")
         # save the project
         self.saveSettings()
         # load the project
         self.loadProject()
+        # refresh all widgets
+        self.refreshAllWidgets(self)
 
     def checkVideoDeviceOption(self):
         if self.videoDeviceComboBox.currentIndex() == 0:
@@ -635,6 +484,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return False
 
     def closeEvent(self, event):
+        if self.projectSettings is None:
+            event.accept()
+            return
         # stop all camera streams
         for dw in self.findChildren(QtWidgets.QDockWidget):
             if isinstance(dw, CameraWindowDockWidget):
@@ -649,20 +501,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 class NewProjectDialogSignals(QtCore.QObject):
-    complete = QtCore.pyqtSignal()
+    complete = QtCore.pyqtSignal(ProjectSettings)
+    openExistingProject = QtCore.pyqtSignal()
 
 
 class NewProjectDialog(QtWidgets.QDialog):
     """A window for creating a new project"""
 
-    def __init__(self, parent=None):
+    def __init__(self, projectSettings, parent=None):
         super(NewProjectDialog, self).__init__(parent=parent)
         self.setWindowTitle("New Project")
         self.setGeometry(self.parent().x() + 100, self.parent().y() + 100, 400, 200)
         self.signals = NewProjectDialogSignals()
         # since projectSettings is a singleton, we can just call the class to get the instance
-        self.projectSettings = ProjectSettings()
-        self.projectSettingsSignal = NewProjectDialogSignals()
+        self.projectSettings = projectSettings
         self.initUI()
 
     def initUI(self):
@@ -689,12 +541,19 @@ class NewProjectDialog(QtWidgets.QDialog):
         self.createProjectButton = QtWidgets.QPushButton("Create Project")
         self.createProjectButton.clicked.connect(self.createProject)
 
+        # button for opening an existing project
+        self.openExistingProjectButton = QtWidgets.QPushButton("Open Existing Project")
+        self.openExistingProjectButton.clicked.connect(
+            self.signals.openExistingProject.emit
+        )
+
         # create a layout
         self.layout = QtWidgets.QGridLayout()
         self.layout.addWidget(self.projectNameLabel, 0, 0, 1, 2)
         self.layout.addWidget(self.projectDirectoryLabel, 1, 0)
         self.layout.addWidget(self.selectProjectDirectoryButton, 1, 1)
         self.layout.addWidget(self.createProjectButton, 2, 1, 1, 1)
+        self.layout.addWidget(self.openExistingProjectButton, 3, 1, 1, 1)
 
         # set the layout
         self.setLayout(self.layout)
@@ -706,13 +565,42 @@ class NewProjectDialog(QtWidgets.QDialog):
             )[0]
         )
 
+    def validateProject(self) -> tuple[bool, str]:
+        # check if the project name is valid
+        if (
+            type(self.projectNameLabel.text()) != str
+            or len(self.projectNameLabel.text()) == 0
+        ):
+            return False, "The project name is invalid"
+        # check if the project directory is valid
+        if (
+            type(self.projectDirectoryLabel.text()) != str
+            or len(self.projectDirectoryLabel.text()) == 0
+            or not os.path.exists(os.path.dirname(self.projectDirectoryLabel.text()))
+        ):
+            return False, "The project directory is invalid"
+        return True, ""
+
     def createProject(self):
+        if not self.validateProject()[0]:
+            msg = QtWidgets.QMessageBox()
+            msg.setWindowIcon(
+                QtGui.QIcon(os.path.join(self.parent().iconsDir, "..", "logo.png"))
+            )
+            msg.setIcon(QtWidgets.QMessageBox.Icon.Critical)
+            msg.setText(self.validateProject()[1])
+            msg.setWindowTitle("Error")
+            okay = msg.addButton("Okay", QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+            msg.setDefaultButton(okay)
+            msg.exec()
+            return
+        self.projectSettings = ProjectSettings()
         self.projectSettings.createNewProject(
             project_name=self.projectNameLabel.text(),
             project_location=self.projectDirectoryLabel.text(),
         )
         # close the window
-        self.projectSettingsSignal.complete.emit()
+        self.signals.complete.emit(self.projectSettings)
         self.close()
 
 
@@ -723,12 +611,12 @@ class ProjectSettingsDialogSignal(QtCore.QObject):
 class ProjectSettingsDialog(QtWidgets.QDialog):
     """A window for editing the project settings"""
 
-    def __init__(self, parent: QtWidgets.QMainWindow):
+    def __init__(self, projectSettings, parent: QtWidgets.QMainWindow):
         super(ProjectSettingsDialog, self).__init__(parent=parent)
         self.setWindowTitle("Project Settings")
         self.setGeometry(self.parent().x() + 100, self.parent().y() + 100, 400, 200)
         self.signals = ProjectSettingsDialogSignal()
-        self.projectSettings = ProjectSettings()
+        self.projectSettings = projectSettings
         self.initUI()
 
     def initUI(self):

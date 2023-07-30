@@ -1,57 +1,102 @@
 import os
 
 from PyQt6 import QtCore, QtGui, QtWidgets
-
-from RVM.bases import ProjectSettings, Trial
+from typing import Union
+from RVM.bases import Trial
 from RVM.camera.camera import Camera
+from RVM.settings import ProjectSettings
 
+class CameraWindow(QtWidgets.QMainWindow):
+    """
+    Represents a single Camera window in the GUI. Can be passed in a camera object or create one.
+    """
 
-class CameraPreviewWindow(QtWidgets.QMainWindow):
     def __init__(
-        self, cam: Camera = None, boxNum: int = None, mainWin=None, parent=None
+        self,
+        projectSettings: ProjectSettings,
+        trial: Trial,
+        camNum: int,
+        mainWin,
+        cam: Union[Camera, None] = None,
+        parent=None,
     ):
-        super(CameraPreviewWindow, self).__init__(parent)
+        super(CameraWindow, self).__init__(parent)
+
+        # cannot be tabbed
+        self.setDocumentMode(True)
+        self._trial = trial
         self.cam = cam
         self.mainWin = mainWin
-
-        if self.cam is None:
-            # create a camera object
-            self.createCamera(boxNum, f"Camera {boxNum}", 30, 30, 30)
+        self.camNum = camNum
+        self.projectSettings = projectSettings
 
         self.initUI()
 
-    def createCamera(
-        self, camNum: int, camName: str, fps: int, prevFPS: int, recFPS: int
-    ) -> None:
+    def createCamera(self, fps: int, prevFPS: int, recFPS: int) -> None:
         """create a camera object"""
-        # get the directory to save the video to
-        save_dir = self.mainWin.projectSettings.project_location
-        if not os.path.exists(save_dir):
-            save_dir = str(os.path.expanduser("~"))
+        if self.trial is None:
+            raise ValueError(
+                "The trial is None, please associate a trial with this camera"
+            )
         self.cam = Camera(
-            camNum=camNum,
-            camName=camName,
-            saveFolder=save_dir,
+            camNum=self.camNum,
+            camName=f"Box {self.trial.box.uid} - Animal {self.trial.animal.uid}",
+            saveFolder=self.projectSettings.video_location,
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
             guiWin=self,
-            trial=None,
         )
+
+    @property
+    def trial(self) -> Trial:
+        return self._trial
+
+    @trial.setter
+    def trial(self, trial: Trial):
+        self._trial = self.projectSettings.get_trial(trial.uid)
+        self.setWindowTitle(f"Animal: {self.trial.uid} - Box: {self.trial.box.uid}")
 
     def initUI(self):
         # set up the tool bar
-        # self.toolBar = QtWidgets.QToolBar()
-        # self.previewButton = QtGui.QAction(
-        #     QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")),
-        #     "&Preview",
-        #     self,
-        # )
-        # self.previewButton.setEnabled(True)
-        # self.previewButton.triggered.connect(self.startPreview)
-        # self.toolBar.addAction(self.previewButton)
+        self.toolBar = QtWidgets.QToolBar()
+        self.previewButton = QtGui.QAction(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "camera.png")),
+            "&Preview",
+            self,
+        )
+        self.previewButton.setEnabled(True)
+        self.previewButton.triggered.connect(self.startPreview)
+        self.toolBar.addAction(self.previewButton)
 
-        # self.addToolBar(self.toolBar)
+        self.recordButton = QtGui.QAction(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "cam-recorder.png")),
+            "&Record",
+            self,
+        )
+        self.recordButton.setEnabled(False)
+        self.recordButton.triggered.connect(self.startRecording)
+        self.toolBar.addAction(self.recordButton)
+
+        self.stopButton = QtGui.QAction(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "stop-record.png")),
+            "&Stop",
+            self,
+        )
+        # inactivate the stop button until we start recording
+        self.stopButton.setEnabled(False)
+        self.stopButton.triggered.connect(self.stopRecording)
+        self.toolBar.addAction(self.stopButton)
+
+        self.resizeButton = QtGui.QAction(
+            QtGui.QIcon(os.path.join(self.mainWin.iconsDir, "resize.png")),
+            "&Resize",
+            self,
+        )
+        self.resizeButton.triggered.connect(self.resizeWindow)
+        self.toolBar.addAction(self.resizeButton)
+
+        self.addToolBar(self.toolBar)
 
         # set up the status bar
         self.statusBar = QtWidgets.QStatusBar(self)
@@ -70,13 +115,32 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
         self.mainLayout = QtWidgets.QVBoxLayout(self.mainWidget)
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(self.mainWidget)
-        self.setWindowTitle(f"Previewing {self.cam.camName}")
         self.resize(self.cam.vc.imw, self.cam.vc.imh)
+        self.previewButton.setEnabled(False)
+        self.recordButton.setEnabled(True)
 
-    def show(self):
-        """Overrides the default show method to preview the camera."""
-        self.startPreview()
-        super(CameraPreviewWindow, self).show()
+    def startRecording(self):
+        """save the video"""
+        self.cam.startRecording()
+        self.recordButton.setEnabled(False)
+        self.stopButton.setEnabled(True)
+
+    def stopRecording(self):
+        """stop saving the video"""
+        self.trial.stop()
+        self.cam.stopRecording()
+        self.recordButton.setEnabled(True)
+        self.stopButton.setEnabled(False)
+
+    def resizeWindow(self):
+        """resize the dock widget to the size of the video"""
+        # calculate the offset from the toolbar
+        self.toolBarHeight = self.toolBar.sizeHint().height()
+        self.offset = self.height() - self.mainWidget.height() - self.toolBarHeight
+        self.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        self.mainWidget.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        self.parent().resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
+        print(self.cam.vc.imw, self.cam.vc.imh)
 
     def close(self):
         """
@@ -92,36 +156,29 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
         """
         if self.close():
             event.accept()
+            super(CameraWindow, self).closeEvent(event)
         else:
             event.ignore()
 
 
 class CameraWindowDockWidget(QtWidgets.QDockWidget):
     def __init__(
-        self, cameraWindow, fps, prevFPS, recFPS, animalId, boxId, parent=None
-    ):
+        self, cameraWindow: CameraWindow, parent=None
+    ) -> None:
         super(CameraWindowDockWidget, self).__init__(parent)
-        self.cameraWindow: CameraWindow = cameraWindow
+        # cannot be tabbed
+        self.setDocumentMode(True) # type: ignore
+        self.cameraWindow = cameraWindow
         self.cameraWindow.setParent(self)
-        self.fps = fps
-        self.prevFPS = prevFPS
-        self.recFPS = recFPS
-        self.animalId = animalId
-        self.boxId = boxId
         self.closeable = True
         self.initUi()
 
-    def initUi(self):
+    def initUi(self) -> None:
         self.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         self.setWidget(self.cameraWindow)
-        self.cameraWindow.createCamera(
-            fps=self.fps,
-            prevFPS=self.prevFPS,
-            recFPS=self.recFPS,
-        )
-        self.setWindowTitle(f"Animal: {self.animalId} - Box: {self.boxId}")
+        self.setWindowTitle(f"Camera Window")
 
-    def close(self):
+    def close(self) -> bool:
         if self.cameraWindow.trial is not None:
             if self.cameraWindow.trial.state == "Running":
                 self.closeable = False
@@ -179,43 +236,49 @@ class CameraWindow(QtWidgets.QMainWindow):
 
     def __init__(
         self,
-        cam: Camera = None,
-        camNum: int = None,
-        trial: Trial = None,
-        mainWin=None,
+        projectSettings: ProjectSettings,
+        trial: Trial,
+        camNum: int,
+        mainWin,
+        cam: Union[Camera, None] = None,
         parent=None,
     ):
         super(CameraWindow, self).__init__(parent)
+
+        # cannot be tabbed
+        self.setDocumentMode(True)
+        self._trial = trial
         self.cam = cam
         self.mainWin = mainWin
         self.camNum = camNum
-        self.trial = trial
-
-        if self.cam is None:
-            # create a camera object
-            self.createCamera(30, 30, 30)
+        self.projectSettings = projectSettings
 
         self.initUI()
 
     def createCamera(self, fps: int, prevFPS: int, recFPS: int) -> None:
         """create a camera object"""
-        # get the directory to save the video to
-        save_dir = os.path.join(self.mainWin.projectSettings.project_location, "Videos")
-        if not os.path.exists(save_dir):
-            try:
-                os.makedirs(save_dir)
-            except:
-                save_dir = str(os.path.expanduser("~"))
+        if self.trial is None:
+            raise ValueError(
+                "The trial is None, please associate a trial with this camera"
+            )
         self.cam = Camera(
             camNum=self.camNum,
             camName=f"Box {self.trial.box.uid} - Animal {self.trial.animal.uid}",
-            saveFolder=save_dir,
+            saveFolder=self.projectSettings.video_location,
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
-            trial=self.trial,
             guiWin=self,
         )
+
+    @property
+    def trial(self) -> Trial:
+        return self._trial
+
+    @trial.setter
+    def trial(self, trial: Trial):
+        self._trial = self.projectSettings.get_trial(trial.uid)
+        self.setWindowTitle(f"Animal: {self.trial.uid} - Box: {self.trial.box.uid}")
 
     def initUI(self):
         # set up the tool bar
@@ -396,7 +459,9 @@ class CreateCameraDialog(QtWidgets.QDialog):
 
     def preview(self):
         self.cameraPreviewWindow = CameraPreviewWindow(
-            parent=self.mainWin, mainWin=self.mainWin
+            projectSettings=self.projectSettings,
+            parent=self.mainWin,
+            mainWin=self.mainWin,
         )
         box = self.projectSettings.getBoxFromId(self.boxNumberComboBox.currentText())
         if box is None:

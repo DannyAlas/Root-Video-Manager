@@ -1,7 +1,7 @@
 import datetime
 import time
 from queue import Queue
-
+import os
 import cv2
 import numpy as np
 from PyQt6.QtCore import QMutex, QObject, Qt, QTimer, pyqtSignal, pyqtSlot
@@ -260,6 +260,7 @@ class vidWriter(QObject):
     def __init__(self, fn: str, vidvars: dict, frames: Queue):
         super(vidWriter, self).__init__()
         self.vFilename = fn
+        assert os.path.exists(os.path.dirname(fn)), "Directory does not exist"
         self.recFPS = vidvars["recFPS"]
         self.recSPF = 1 / self.recFPS
         self.vw = cv2.VideoWriter(
