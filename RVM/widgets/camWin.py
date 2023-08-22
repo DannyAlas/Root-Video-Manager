@@ -287,7 +287,8 @@ class CameraWindow(QtWidgets.QMainWindow):
 
     def stopRecording(self):
         """stop saving the video"""
-        self.trial.stop()
+        # FIXME: this should use a methos in the trial not set the state directly, but self.trial is a TrialBase not a Trial
+        self.trial.state = "Stopped"
         self.cam.stopRecording()
         self.recordButton.setEnabled(True)
         self.stopButton.setEnabled(False)

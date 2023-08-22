@@ -718,7 +718,7 @@ class RunTrialsDialog(QtWidgets.QDialog):
                         trial.box.camera
                     ),
                     mainWin=self.mainWin,
-                    trial=trial,
+                    trial=self.projectSettings.getTrialFromId(trial.uid),
                 )
                 dw = self.parent.addCameraDockWidget(
                     cameraWindow, trial.box.uid, trial.animal.uid
