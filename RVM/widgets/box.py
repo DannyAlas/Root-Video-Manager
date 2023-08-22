@@ -470,7 +470,7 @@ class BoxDialog(QtWidgets.QDialog):
         if self.cameraComboBox.currentText() in [
             self.mainWin.videoDevices.get(box.camera, "")
             for box in self.projectSettings.boxes
-            if box.uid != self.currentBox.uid
+            if box.uid != self.boxIdLineEdit.text()
         ]:
             return (
                 False,
