@@ -459,6 +459,8 @@ class BoxDialog(QtWidgets.QDialog):
 
     def checkInputs(self):
         if self.currentBox is None:
+            if not str(self.boxIdLineEdit.text()).isalnum():
+                return False, "Box ID must not contain special characters"
             if self.boxIdLineEdit.text() == "":
                 return False, "Please enter a box ID"
             if self.boxIdLineEdit.text() in [

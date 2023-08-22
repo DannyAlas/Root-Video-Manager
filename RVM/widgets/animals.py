@@ -389,8 +389,10 @@ class AnimalDialog(QtWidgets.QDialog):
             uid = self.uidLineEdit.text()
             if uid == "":
                 return False, "Animal ID cannot be empty"
-            if uid in [animal.uid for animal in self.projectSettings.animals]:
+            elif uid in [animal.uid for animal in self.projectSettings.animals]:
                 return False, "Animal ID already exists"
+            elif not str(uid).isalnum():
+                return False, "Animal ID must not contain special characters"
         return True, "Updated animal"
 
     def accept(self):
