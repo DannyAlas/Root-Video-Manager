@@ -173,7 +173,7 @@ class ProjectSettings(ProjectSettingsBase):
                 return box
         return None
 
-    def getTrialFromId(self, uid):
+    def getTrialFromId(self, uid) -> TrialBase:
         for trial in self.trials:
             if trial.uid == uid:
                 return trial

@@ -2,8 +2,6 @@
 # updates the project settings when a box is modified
 
 import os
-from math import e
-from unittest import expectedFailure
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 

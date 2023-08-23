@@ -77,6 +77,15 @@ class TrialBase(BaseModel):
         except ValueError as e:
             raise ValueError(f"The trial box for trial {self.uid} is invalid: {e}")
 
+    def load(self, **kwargs):
+        # set our attributes
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def stop(self):
+        self.state = "Stopped"
+        self.end_time = datetime.now()
+
     class Config:
         arbitrary_types_allowed = True
 
