@@ -1,10 +1,13 @@
 import datetime
+import logging
 import time
 from queue import Queue
 
 import cv2
 import numpy as np
 from PyQt6.QtCore import QMutex, QObject, Qt, QTimer, pyqtSignal, pyqtSlot
+
+log = logging.getLogger()
 
 
 class vrSignals(QObject):
@@ -50,7 +53,7 @@ class vidReader(QObject):
     @pyqtSlot()
     def run(self) -> None:
         """Run this function when this thread is started. Collect a frame and return to the gui"""
-
+        log.debug(f"Starting reader for {self.cameraName}\n\t{self.vc}")
         self.timer = QTimer()
         self.timer.timeout.connect(self.loop)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -129,6 +132,7 @@ class vidReader(QObject):
                 self.sendFrame(frame, True)
 
     def close(self):
+        log.debug(f"closing reader for {self.cameraName}")
         if hasattr(self, "timer") and self.timer.isActive():
             self.timer.stop()
         self.signals.finished.emit()
@@ -171,6 +175,7 @@ class previewer(QObject):
 
     def run(self) -> None:
         """Run this function when this thread is started. Collect a frame and return to the gui"""
+        log.debug(f"Starting previewer for {self.cameraName}\n\t{self.vc}")
         self.timer = QTimer()
         self.timer.timeout.connect(self.loop)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -231,7 +236,7 @@ class previewer(QObject):
         self.sendFrame(frame, False)
 
     def close(self):
-        print("closing reader")
+        log.debug(f"closing previewer for {self.cameraName}")
         if hasattr(self, "timer") and self.timer.isActive():
             self.timer.stop()
         self.signals.finished.emit()
@@ -281,7 +286,7 @@ class vidWriter(QObject):
     def run(self) -> None:
         """this loops until we receive a frame that is a string the save function will pass None to the frame queue when we are done recording"""
         printFreq = 100
-
+        log.debug(f"Starting writer for {self.vFilename}")
         while True:
             if self.kill:
                 return
@@ -316,7 +321,7 @@ class vidWriter(QObject):
 
     def close(self) -> None:
         """stop writing"""
-        print("closing writer")
+        log.debug(f"Closing writer for {self.vFilename}")
         self.kill = True
 
 

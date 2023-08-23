@@ -1,9 +1,9 @@
 import datetime
+import logging
 import os
 import sys
-from math import e
 from queue import Queue
-from typing import Dict, List
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -16,6 +16,11 @@ from PyQt6.QtWidgets import (QApplication, QLabel, QMainWindow, QMenuBar,
 
 from RVM.bases import Trial
 from RVM.camera.camThreads import previewer, vidReader, vidWriter
+
+if TYPE_CHECKING:
+    from RVM.mainWindow import MainWindow
+
+log = logging.getLogger()
 
 
 class VideoCaptureSignals(QObject):
@@ -46,20 +51,20 @@ class VideoCapture(QMutex):
     def id(self):
         return self._id
 
-    def updateStatus(self, msg: str, log: bool = False):
+    def updateStatus(self, msg: str, _log: bool = False):
         """update the status bar by sending a signal"""
-        print(msg)
-        self.signals.status.emit(str(msg), log)
+        log.info(msg)
+        self.signals.status.emit(str(msg), _log)
 
     def updateFPS(self, fps):
-        print(f"updating fps to {fps}")
+        log.debug(f"updating fps to {fps}")
         self.fps = fps
         self.mspf = int(round(1000.0 / self.fps))
 
     def updatePrevFPS(self, prevFPS):
         self.previewFPS = prevFPS
         self.prevmspf = int(round(1000.0 / self.previewFPS))
-        print(f"updating preview fps to {self.previewFPS}")
+        log.debug(f"updating preview fps to {self.previewFPS}")
 
     def connectVC(self):
         try:
@@ -102,9 +107,6 @@ class VideoCapture(QMutex):
         try:
             rval, frame = self.camDevice.read()
         except:
-            self.updateStatus("Error reading frame", True)
-
-        if not rval:
             self.updateStatus("Error reading frame", True)
 
         else:
@@ -188,11 +190,11 @@ class Camera(QObject):
         fps: int,
         prevFPS: int,
         recFPS: int,
-        guiWin: QMainWindow,
+        mainWin: "MainWindow",
         trial: Trial = None,
     ):
         super(Camera, self).__init__()
-        self.guiWin = guiWin
+        self.guiWin = mainWin
         self.signals = CameraSignals()
         self.camNum = camNum
         self.camName = camName
@@ -202,7 +204,7 @@ class Camera(QObject):
 
         self.trial = trial
 
-        self.fileName = None
+        self.vidFilePath = [trial.video_location if trial is not None else None][0]
 
         self.readerRunning = False
         self.prevRunning = False
@@ -309,7 +311,7 @@ class Camera(QObject):
             self.readWorker.signals.progress.connect(self.printDiagnostics)
             # Step 6: Start the thread
             self.readThread.start()
-            print("start reader")
+            log.debug("start reader")
 
     def startPreviewer(self) -> None:
         """start updating preview"""
@@ -345,7 +347,7 @@ class Camera(QObject):
             self.saveFolder = str(self.saveFolder)
             if not os.path.exists(self.saveFolder):
                 os.makedirs(self.saveFolder)
-            print(f"save folder: {self.saveFolder}")
+            log.debug(f"save folder: {self.saveFolder}")
             # datetime.datetime.now format as YYYY-MM-DD_HHMMSS
             fn = (
                 os.path.abspath(self.saveFolder)
@@ -361,16 +363,18 @@ class Camera(QObject):
             fullfn = os.path.abspath(fn)
             if os.path.exists(fullfn):
                 # TODO: add a dialog warning system for overwriting files
-                print(f"File {fullfn} already exists. Will overwrite.")
+                log.debug(f"File {fullfn} already exists. Will overwrite.")
             return fullfn
         except Exception as e:
-            print(f"Error getting filename: {e}")
+            log.debug(f"Error getting filename: {e}")
             return "UNKNOWN"
 
     def createWriter(self) -> None:
         """create a videoWriter object"""
-        if self.fileName is None:
+        if self.vidFilePath is None:
             raise ValueError("No filename specified")
+        if not os.path.exists(os.path.dirname(self.vidFilePath)):
+            os.makedirs(os.path.dirname(self.vidFilePath))
         if self.trial is None:
             raise ValueError("No trial specified")
 
@@ -392,7 +396,7 @@ class Camera(QObject):
         }
         self.writeThread = QThread()
         self.writeWorker = vidWriter(
-            self.fileName, vidvars, self.frames
+            self.vidFilePath, vidvars, self.frames
         )  # creates a new thread to write frames to file
 
         self.writeWorker.moveToThread(self.writeThread)
@@ -405,7 +409,7 @@ class Camera(QObject):
         self.writeWorker.signals.error.connect(self.updateStatus)
         self.writeThread.start()
 
-        self.updateStatus(f"Recording {self.fileName} ... ", True)
+        self.updateStatus(f"Recording {self.vidFilePath} ... ", True)
         # QThreadPool.globalInstance().start(recthread)          # start writing in a background thread
         self.startReader()  # this only starts the reader if we're not already previewing
 
@@ -423,7 +427,7 @@ class Camera(QObject):
             0 if successful, 1 if not.
         """
         if self.recording:
-            print("Cannot change frame rate while recording.")
+            log.debug("Cannot change frame rate while recording.")
             return
 
         if self.fps == fps:
@@ -575,16 +579,15 @@ class Camera(QObject):
     @pyqtSlot(str, bool)
     def updateStatus(self, st: str, log: bool = False) -> None:
         """updates the status"""
-        print(st)
         # send the status to the status bar
         try:
-            self.guiWin.statusBar.showMessage(st)
+            self.guiWin.updateStatus(st)
         except:
             pass
 
     def printDiagnostics(self, st: str) -> None:
         """prints diagnostics"""
-        print(st)
+        log.debug(st)
 
     def updateRecordStatus(self) -> None:
         """updates the status bar during recording and during save.
@@ -599,7 +602,7 @@ class Camera(QObject):
             s = "Recorded "
             log = True
         saveFreq = int(round(self.fps / self.recFPS))
-        s += f"{self.fileName} {self.timeRec:2.2f} s, "
+        s += f"{self.vidFilePath} {self.timeRec:2.2f} s, "
         if self.writing and not self.recording:
             s += f"{int(np.floor(self.fleft/saveFreq))}/{int(np.floor(self.totalFrames/saveFreq))} frames left"
         else:

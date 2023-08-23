@@ -1,9 +1,16 @@
+import logging
 import os
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from RVM.bases import ProjectSettings, Trial
 from RVM.camera.camera import Camera
+
+if TYPE_CHECKING:
+    from RVM.mainWindow import MainWindow
+
+log = logging.getLogger()
 
 
 class CameraPreviewWindow(QtWidgets.QMainWindow):
@@ -12,7 +19,7 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
     ):
         super(CameraPreviewWindow, self).__init__(parent)
         self.cam = cam
-        self.mainWin = mainWin
+        self.mainWin: MainWindow = mainWin
 
         if self.cam is None:
             # create a camera object
@@ -24,6 +31,7 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
         self, camNum: int, camName: str, fps: int, prevFPS: int, recFPS: int
     ) -> None:
         """create a camera object"""
+
         # get the directory to save the video to
         save_dir = self.mainWin.projectSettings.project_location
         if not os.path.exists(save_dir):
@@ -38,6 +46,7 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
             guiWin=self,
             trial=None,
         )
+        log.debug(f"Created camera {camName} with camNum {camNum}")
 
     def initUI(self):
         # set up the tool bar
@@ -98,7 +107,15 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
 
 class CameraWindowDockWidget(QtWidgets.QDockWidget):
     def __init__(
-        self, cameraWindow, fps, prevFPS, recFPS, animalId, boxId, parent=None
+        self,
+        cameraWindow,
+        fps,
+        prevFPS,
+        recFPS,
+        animalId,
+        boxId,
+        mainWin: "MainWindow",
+        parent=None,
     ):
         super(CameraWindowDockWidget, self).__init__(parent)
         self.cameraWindow: CameraWindow = cameraWindow
@@ -109,6 +126,7 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
         self.animalId = animalId
         self.boxId = boxId
         self.closeable = True
+        self.mainWin = mainWin
         self.initUi()
 
     def initUi(self):
@@ -142,8 +160,13 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
                 if ok == QtWidgets.QMessageBox.StandardButton.Yes:
                     self.closeable = True
                     self.cameraWindow.trial.stop()
+                    self.mainWin.updateStatus(
+                        f"Stopped Trial: {self.cameraWindow.trial.uid}"
+                    )
                     if self.cameraWindow.close():
-                        self.parent().removeDockWidget(self)
+                        # refresh the widgets because we just stopped a trial and the trial manager needs to update
+                        self.mainWin.refreshAllWidgets(caller=self)
+                        self.mainWin.removeDockWidget(self)
                         return True
                     else:
                         return False
@@ -151,13 +174,15 @@ class CameraWindowDockWidget(QtWidgets.QDockWidget):
                     return False
             else:
                 if self.cameraWindow.close():
-                    self.parent().removeDockWidget(self)
+                    self.mainWin.refreshAllWidgets(caller=self)
+                    self.mainWin.removeDockWidget(self)
                     return True
                 else:
                     return False
         else:
             if self.cameraWindow.close():
-                self.parent().removeDockWidget(self)
+                self.mainWin.refreshAllWidgets(caller=self)
+                self.mainWin.removeDockWidget(self)
                 return True
             else:
                 return False
@@ -187,7 +212,7 @@ class CameraWindow(QtWidgets.QMainWindow):
     ):
         super(CameraWindow, self).__init__(parent)
         self.cam = cam
-        self.mainWin = mainWin
+        self.mainWin: MainWindow = mainWin
         self.camNum = camNum
         self.trial = trial
 
@@ -213,8 +238,8 @@ class CameraWindow(QtWidgets.QMainWindow):
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
-            trial=self.trial,
-            guiWin=self,
+            trial=self.mainWin.projectSettings.getTrialFromId(self.trial.uid),
+            mainWin=self,
         )
 
     def initUI(self):
@@ -287,7 +312,6 @@ class CameraWindow(QtWidgets.QMainWindow):
 
     def stopRecording(self):
         """stop saving the video"""
-        # FIXME: this should use a methos in the trial not set the state directly, but self.trial is a TrialBase not a Trial
         self.trial.stop()
         self.cam.stopRecording()
         self.recordButton.setEnabled(True)
@@ -301,7 +325,6 @@ class CameraWindow(QtWidgets.QMainWindow):
         self.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
         self.mainWidget.resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
         self.parent().resize(self.cam.vc.imw, self.cam.vc.imh + self.offset)
-        print(self.cam.vc.imw, self.cam.vc.imh)
 
     def close(self):
         """
@@ -320,130 +343,3 @@ class CameraWindow(QtWidgets.QMainWindow):
             super(CameraWindow, self).closeEvent(event)
         else:
             event.ignore()
-
-
-class CreateCameraDialogSignals(QtCore.QObject):
-    """Signals for the CreateCameraDialog class"""
-
-    # signal to create a camera
-    finished = QtCore.pyqtSignal(CameraWindow, int, str)
-
-
-class CreateCameraDialog(QtWidgets.QDialog):
-    def __init__(
-        self,
-        projectSettings: ProjectSettings,
-        mainWin,
-        parent=None,
-    ):
-        super().__init__(parent)
-        self.projectSettings = projectSettings
-        self.signals = CreateCameraDialogSignals()
-        self.parent = parent
-        self.mainWin = mainWin
-        self.cameraWindow = None
-        self.cameraPreviewWindow = None
-        self.initUi()
-
-    def initUi(self):
-        self.setWindowTitle("New Box")
-
-        # create the layout
-        self.layout = QtWidgets.QVBoxLayout()
-        self.setLayout(self.layout)
-
-        # create the form layout
-        self.formLayout = QtWidgets.QGridLayout()
-        self.layout.addLayout(self.formLayout)
-        self.formLayout.setVerticalSpacing(20)
-        self.formLayout.setHorizontalSpacing(20)
-
-        # create the box id number input
-        self.boxNumberComboBox = QtWidgets.QComboBox()
-        self.boxNumberComboBox.setPlaceholderText("Select a box")
-        self.boxNumberComboBox.addItems([box.uid for box in self.projectSettings.boxes])
-        # create the animal id line edit
-        self.animalIdComboBox = QtWidgets.QComboBox()
-        self.animalIdComboBox.setPlaceholderText("Select an animal")
-        self.animalIdComboBox.addItems(
-            [animal.uid for animal in self.projectSettings.animals]
-        )
-        # preview button
-        self.previewButton = QtWidgets.QPushButton("Preview")
-        self.previewButton.clicked.connect(self.preview)
-
-        # add the widgets to the layout
-        self.formLayout.addWidget(QtWidgets.QLabel("Box ID"), 0, 0)
-        self.formLayout.addWidget(self.boxNumberComboBox, 0, 1)
-        self.formLayout.addWidget(QtWidgets.QLabel("Animal Id"), 1, 0)
-        self.formLayout.addWidget(self.animalIdComboBox, 1, 1)
-        self.formLayout.addWidget(self.previewButton, 2, 0, 1, 2)
-
-        # create the button layout
-        self.buttonLayout = QtWidgets.QHBoxLayout()
-        self.layout.addLayout(self.buttonLayout)
-
-        # create the ok button
-        self.okButton = QtWidgets.QPushButton("Ok")
-        self.okButton.clicked.connect(self.accept)
-
-        # create the cancel button
-        self.cancelButton = QtWidgets.QPushButton("Cancel")
-        self.cancelButton.clicked.connect(self.reject)
-
-        # add the buttons to the button layout
-        self.buttonLayout.addWidget(self.okButton)
-        self.buttonLayout.addWidget(self.cancelButton)
-
-    def preview(self):
-        self.cameraPreviewWindow = CameraPreviewWindow(
-            parent=self.mainWin, mainWin=self.mainWin
-        )
-        box = self.projectSettings.getBoxFromId(self.boxNumberComboBox.currentText())
-        if box is None:
-            self.mainWin.messageBox(
-                title="ERROR", text="Box not Found", severity="Critical"
-            )
-            return
-        try:
-            camera = self.mainWin.videoDevices[box.camera]
-        except Exception as e:
-            self.mainWin.messageBox(
-                title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
-            )
-            return
-        self.cameraPreviewWindow.createCamera(
-            camNum=list(self.mainWin.videoDevices.values()).index(camera),
-            camName=camera,
-            fps=30,
-            prevFPS=30,
-            recFPS=30,
-        )
-        self.cameraPreviewWindow.show()
-
-    def accept(self) -> None:
-        box = self.projectSettings.getBoxFromId(self.boxNumberComboBox.currentText())
-        if box is None:
-            self.mainWin.messageBox(
-                title="ERROR", text="Box not Found", severity="Critical"
-            )
-            return
-        try:
-            camera = self.mainWin.videoDevices[box.camera]
-        except Exception as e:
-            self.mainWin.messageBox(
-                title="ERROR", text=f"FATAL ERROR: {e}", severity="Critical"
-            )
-            return
-        self.signals.finished.emit(
-            CameraWindow(
-                parent=self.mainWin,
-                camNum=list(self.mainWin.videoDevices.values()).index(camera),
-                mainWin=self.mainWin,
-                boxId=self.boxNumberComboBox.currentText(),
-                animalId=self.animalIdComboBox.currentText(),
-            ),
-            int(self.boxNumberComboBox.currentText()),
-            self.animalIdComboBox.currentText(),
-        )
-        super().accept()

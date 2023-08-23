@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Literal, Union
 
@@ -6,14 +7,16 @@ from devices import check_ffmpeg, get_devices
 from PyQt6 import QtCore, QtGui, QtWidgets
 from widgets import *
 
+log = logging.getLogger()
+
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, logging_level=logging.DEBUG):
         super(MainWindow, self).__init__()
         self.setWindowTitle("Root Video Manager")
         self.qtsettings = QtCore.QSettings("RVM", "RVM")
         self.projectSettings = ProjectSettings()
-
+        self.logging_level = logging_level
         self.iconsDir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "icons", "dark"
         )
@@ -28,6 +31,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar.showMessage("Ready")
 
         self.initSettings()
+        self.initLogging()
         self.initUI()
         self.initMenus()
 
@@ -49,10 +53,68 @@ class MainWindow(QtWidgets.QMainWindow):
         except:
             self.updateStatus("Failed to load the project settings")
 
+        logging.basicConfig(
+            filename=os.path.join(self.projectSettings.project_location, "log.txt"),
+            filemode="a",
+            format="%(asctime)s - %(levelname)s: %(message)s",
+            datefmt="%m/%d/%Y %I:%M:%S %p",
+        )
         # TODO: spawn a thread to check for new devices instead of doing it here
         self.initDevices()
 
+    def initLogging(self):
+        self.log = logging.getLogger()
+        logFormatter = logging.Formatter(
+            "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s \n",
+            datefmt="%m/%d/%Y %I:%M:%S %p",
+        )
+
+        fileHandler = logging.FileHandler(
+            f"{os.path.join(self.projectSettings.project_location, 'log.txt')}"
+        )
+        for handler in self.log.handlers:
+            if isinstance(handler, logging.FileHandler):
+                self.log.removeHandler(handler)
+        fileHandler.setFormatter(logFormatter)
+        self.log.addHandler(fileHandler)
+
+        consoleHandler = logging.StreamHandler()
+        consoleHandler.setFormatter(logFormatter)
+        self.log.addHandler(consoleHandler)
+
+        self.log.setLevel(self.logging_level)
+
+    def updateLoggingFile(self):
+        if self.projectSettings is None:
+            return
+        if not os.path.exists(self.projectSettings.project_location):
+            return
+        if not os.path.exists(
+            os.path.join(self.projectSettings.project_location, "log.txt")
+        ):
+            # create a new log file
+            with open(
+                os.path.join(self.projectSettings.project_location, "log.txt"), "w"
+            ) as file:
+                file.write("")
+        if self.log is None:
+            self.log = logging.getLogger()
+        fileHandler = logging.FileHandler(
+            f"{os.path.join(self.projectSettings.project_location, 'log.txt')}"
+        )
+        fileHandler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s \n",
+                datefmt="%m/%d/%Y %I:%M:%S %p",
+            )
+        )
+        for handler in self.log.handlers:
+            if isinstance(handler, logging.FileHandler):
+                self.log.removeHandler(handler)
+        self.log.addHandler(fileHandler)
+
     def updateStatus(self, message: str, timeout: int = 0):
+        log.info(message)
         self.statusBar.showMessage(message, timeout)
 
     def initDevices(self):
@@ -302,16 +364,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.createDockWidgets()
 
-    def OpenCreateCameraDialog(self):
-        self.createCameraDialog = CreateCameraDialog(
-            mainWin=self, projectSettings=self.projectSettings, parent=self
-        )
-        self.createCameraDialog.signals.finished.connect(self.addCameraDockWidget)
-        self.createCameraDialog.show()
-
     def addCameraDockWidget(
         self, cameraWindow: CameraWindow, boxId: int, animalId: str
-    ):
+    ) -> Union[CameraWindowDockWidget, None]:
         msg_str = None
         for dockWidget in self.findChildren(CameraWindowDockWidget):
             if dockWidget.boxId == boxId:
@@ -331,12 +386,14 @@ class MainWindow(QtWidgets.QMainWindow):
             fps=30,
             recFPS=30,
             prevFPS=30,
+            mainWin=self,
             parent=self,
         )
         # add the dock widget to the main window
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dockWidget)
         # add the dock widget to the view menu
         self.viewMenu.addAction(dockWidget.toggleViewAction())
+        return dockWidget
 
     def previewAllCameras(self):
         for dockWidget in self.findChildren(CameraWindowDockWidget):
@@ -363,7 +420,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(
             QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.animalManagerDockWidget
         )
-        self.trialManagerDockWidget = TrialManagerDockWidget(self.projectSettings, self)
+        self.trialManagerDockWidget = TrialManagerDockWidget(
+            self.projectSettings, self, self
+        )
         self.viewMenu.addAction(self.trialManagerDockWidget.toggleViewAction())
         self.addDockWidget(
             QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.trialManagerDockWidget
@@ -397,6 +456,15 @@ class MainWindow(QtWidgets.QMainWindow):
             "Critical": QtWidgets.QMessageBox.Icon.Critical,
             "Question": QtWidgets.QMessageBox.Icon.Question,
         }[severity]
+        if severity == QtWidgets.QMessageBox.Icon.Question:
+            log.info(f"QUESTION: {text}")
+        elif severity == QtWidgets.QMessageBox.Icon.Warning:
+            log.warning(f"WARNING: {text}")
+        elif severity == QtWidgets.QMessageBox.Icon.Critical:
+            log.critical(f"CRITICAL: {text}")
+        elif severity == QtWidgets.QMessageBox.Icon.Information:
+            log.info(f"INFO: {text}")
+
         msg = QtWidgets.QMessageBox()
         msg.setWindowIcon(QtGui.QIcon(os.path.join(self.iconsDir, "..", "logo.png")))
         msg.setIcon(severity)
@@ -484,8 +552,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.qtsettings.setValue(
             "latest_project_location", self.projectSettings.project_location
         )
+        self.updateLoggingFile()
 
-    def loadProject(self, projectSettings: ProjectSettings):
+    def loadProject(self, projectSettings: ProjectSettings = None):
+        if projectSettings is not None:
+            self.projectSettings = projectSettings
         self.window().setWindowTitle(
             "Root Video Manager - " + self.projectSettings.project_name
         )
@@ -497,18 +568,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.projectSettings.window_position[0],
             self.projectSettings.window_position[1],
         )
+        self.updateLoggingFile()
 
     def reloadProject(self):
         # save the project
         self.saveSettings()
         # load the project
         self.loadProject(self.projectSettings)
-
-    def checkVideoDeviceOption(self):
-        if self.videoDeviceComboBox.currentIndex() == 0:
-            self.startVideoStreamButton.setEnabled(False)
-        else:
-            self.startVideoStreamButton.setEnabled(True)
+        self.updateLoggingFile()
 
     def saveSettings(self):
         # save position and size of the window
@@ -520,6 +587,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.qtsettings.setValue(
             "latest_project_location", self.projectSettings.project_location
         )
+        self.updateLoggingFile()
 
     def closeEvent(self, event):
         # stop all camera streams
@@ -664,3 +732,7 @@ class ProjectSettingsDialog(QtWidgets.QDialog):
         self.signals.projectSettingsSignal.emit(self.projectSettings)
         # close the window
         self.close()
+
+
+def get_main_win():
+    return QtWidgets.QApplication.instance().mainWindow

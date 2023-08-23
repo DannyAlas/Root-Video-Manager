@@ -26,7 +26,6 @@ def get_ffmpeg(location):
         f.write(data)
     with zipfile.ZipFile(os.path.join(location, "ffmpeg.zip"), "r") as zip:
         zip.extractall(location)
-        print(zip.namelist())
     if os.path.exists(os.path.join(location, "ffmpeg.zip")):
         os.remove(os.path.join(location, "ffmpeg.zip"))
 
@@ -109,12 +108,15 @@ def format_device_output(text):
                 cont = False
         except:
             continue
-        
+
     for device in devices["video"]:
         if list(devices["video"].values()).count(devices["video"][device]) > 1:
-            devices["video"][device] = devices["video"][device] + " (" + str(list(devices["video"].values()).index(devices["video"][device])) + ")"
-    
-    print(devices)
+            devices["video"][device] = (
+                devices["video"][device]
+                + " ("
+                + str(list(devices["video"].values()).index(devices["video"][device]))
+                + ")"
+            )
 
     return devices
 

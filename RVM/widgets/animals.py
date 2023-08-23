@@ -4,7 +4,7 @@ import os
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from RVM.bases import Animal, ProjectSettings
+from RVM.bases import Animal, AnimalBase, ProjectSettings
 
 
 class AnimalManagerDockWidget(QtWidgets.QDockWidget):
@@ -153,43 +153,26 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
     def editAnimal(self, item: QtWidgets.QTreeWidgetItem, column: int):
         self.parent.statusBar.showMessage("Editing animal {}".format(item.text(0)))
         # load the animal from the project settings
-        animal = [
-            animal
-            for animal in self.projectSettings.animals
-            if animal.uid == item.text(0)
-        ]
+        animal = self.projectSettings.getAnimalFromId(item.text(0))
         if animal is None:
             self.parent.statusBar.showMessage(
                 "Could not find animal with id {}".format(item.text(0))
             )
             return
-        if len(animal) == 0:
-            self.parent.statusBar.showMessage(
-                "Could not find animal with id {}".format(item.text(0))
-            )
-            return
-        if len(animal) > 1:
-            self.parent.statusBar.showMessage(
-                "Multiple animals with id {}".format(item.text(0))
-            )
-        animal = animal[0]
         # create an instance of the animal dialog
         animalDialog = AnimalDialog(self.projectSettings, self)
         animalDialog.loadAnimal(animal)
         animalDialog.signals.okClicked.connect(self.updateAnimal)
         animalDialog.show()
 
-    def updateAnimal(self, animal: Animal):
+    def updateAnimal(self, animal: AnimalBase):
         # update the animal in the project settings
-        for i, a in enumerate(self.projectSettings.animals):
-            if a.uid == animal.uid:
-                self.projectSettings.animals[i] = animal
-                break
+        self.projectSettings.updateAnimal(animal)
         # update the animal in the tree widget
         self.addAnimals()
         self.parent.refreshAllWidgets(self)
 
-    def addAnimal(self, animal: Animal):
+    def addAnimal(self, animal: AnimalBase):
         # add the animal to the project settings
         self.projectSettings.animals.append(animal)
         # add the animal to the tree widget
@@ -310,7 +293,7 @@ class AnimalManagerDockWidget(QtWidgets.QDockWidget):
 
 
 class AnimalDialogSignals(QtCore.QObject):
-    okClicked = QtCore.pyqtSignal(Animal)
+    okClicked = QtCore.pyqtSignal(AnimalBase)
 
 
 class AnimalDialog(QtWidgets.QDialog):
@@ -364,7 +347,7 @@ class AnimalDialog(QtWidgets.QDialog):
         self.buttonBox.rejected.connect(self.reject)
         self.layout.addWidget(self.buttonBox)
 
-    def loadAnimal(self, animal: Animal):
+    def loadAnimal(self, animal: AnimalBase):
         self.currentAnimal = animal
         # set the animal id to not be editable
         self.uidLineEdit.setReadOnly(True)
@@ -402,14 +385,20 @@ class AnimalDialog(QtWidgets.QDialog):
             # show the message box
             QtWidgets.QMessageBox.critical(self, "Error", message)
             return
-        # create a new animal
-        animal = Animal(
-            uid=self.uidLineEdit.text(),
-            genotype=self.genotypeLineEdit.text(),
-            alive=self.aliveCheckBox.isChecked(),
-            notes=self.notesTextEdit.toPlainText(),
-        )
+
+        if self.currentAnimal is None:
+            self.currentAnimal = Animal(
+                uid=self.uidLineEdit.text(),
+                genotype=self.genotypeLineEdit.text(),
+                alive=self.aliveCheckBox.isChecked(),
+                notes=self.notesTextEdit.toPlainText(),
+            )
+        else:
+            self.currentAnimal.genotype = self.genotypeLineEdit.text()
+            self.currentAnimal.alive = self.aliveCheckBox.isChecked()
+            self.currentAnimal.notes = self.notesTextEdit.toPlainText()
+
         # emit the ok clicked signal
-        self.signals.okClicked.emit(animal)
+        self.signals.okClicked.emit(self.currentAnimal)
         # accept the dialog
         super().accept()

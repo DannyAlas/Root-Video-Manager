@@ -1,4 +1,5 @@
 # pydantic base models for the data structures used in the RVM
+import logging
 from asyncio import protocols
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,8 @@ from pandas import DataFrame
 from pydantic import BaseModel, Field, validator
 
 DataFrameType = TypeVar("DataFrameType", DataFrame, dict)
+
+log = logging.getLogger()
 
 
 def uid_gen():
@@ -34,6 +37,11 @@ class AnimalBase(BaseModel):
         if type(self.notes) != str:
             raise ValueError("The animal notes is invalid")
 
+    def __setattr__(self, name, value):
+        if not self.__getattribute__(name) == value:
+            log.debug(f"ANIMAL: {self.uid}  SET {name} TO {value}")
+        return super().__setattr__(name, value)
+
 
 class BoxBase(BaseModel):
     uid: str = ""
@@ -47,6 +55,11 @@ class BoxBase(BaseModel):
             raise ValueError("The box camera is invalid")
         if type(self.notes) != str:
             raise ValueError("The box notes is invalid")
+
+    def __setattr__(self, name, value):
+        if not self.__getattribute__(name) == value:
+            log.debug(f"BOX: {self.uid}  SET {name} TO {value}")
+        return super().__setattr__(name, value)
 
 
 class TrialBase(BaseModel):
@@ -86,6 +99,11 @@ class TrialBase(BaseModel):
         self.state = "Stopped"
         self.end_time = datetime.now()
 
+    def __setattr__(self, name, value):
+        if not self.__getattribute__(name) == value:
+            log.debug(f"TRIAL: {self.uid}  SET {name} TO {value}")
+        return super().__setattr__(name, value)
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -96,6 +114,11 @@ class ProtocalBase(BaseModel):
     animals: List[AnimalBase] = []
     boxes: List[BoxBase] = []
     trials: List[TrialBase] = []
+
+    def __setattr__(self, name, value):
+        if not self.__getattribute__(name) == value:
+            log.debug(f"Setting {name} to {value}")
+        return super().__setattr__(name, value)
 
 
 class ProjectSettingsBase(BaseModel):
@@ -110,3 +133,8 @@ class ProjectSettingsBase(BaseModel):
     animals: list[AnimalBase] = []
     trials: list[TrialBase] = []
     boxes: list[BoxBase] = []
+
+    def __setattr__(self, name, value):
+        if not self.__getattribute__(name) == value:
+            log.debug(f"SET {name} TO {value}")
+        return super().__setattr__(name, value)

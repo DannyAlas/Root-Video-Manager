@@ -1,13 +1,14 @@
 # the models for the project with helper functions
 import datetime
 import json
+import logging
 import os
 import subprocess
-from tkinter import E
-from wsgiref import validate
 
 from RVM.bases.base import (AnimalBase, BoxBase, ProjectSettingsBase,
                             ProtocalBase, TrialBase)
+
+log = logging.getLogger()
 
 
 class ProjectSettings(ProjectSettingsBase):
@@ -90,11 +91,6 @@ class ProjectSettings(ProjectSettingsBase):
                 raise ValueError(f"The window size {self.window_size} is not valid")
         except Exception as e:
             raise ValueError(f"The window size {self.window_size} is not valid")
-        try:
-            if self.window_position[0] < 0 or self.window_position[1] < 0:
-                raise ValueError(f"The window size {self.window_position} is not valid")
-        except Exception as e:
-            raise ValueError(f"The window size {self.window_position} is not valid")
 
         for animal in self.animals:
             if isinstance(animal, AnimalBase) or isinstance(animal, Animal):
@@ -166,6 +162,13 @@ class ProjectSettings(ProjectSettingsBase):
             if animal.uid == uid:
                 return animal
         return None
+
+    def updateAnimal(self, animal: AnimalBase):
+        for i, a in enumerate(self.animals):
+            if a.uid == animal.uid:
+                self.animals[i] = animal
+                return True
+        return False
 
     def getBoxFromId(self, uid):
         for box in self.boxes:
