@@ -172,7 +172,7 @@ class Camera(QObject):
         The frame rate of the preview
     recFPS : int
         The frame rate of the recording
-    guiWin : QMainWindow
+    mainWin : QMainWindow
         The main window of the GUI
 
     Note
@@ -194,7 +194,7 @@ class Camera(QObject):
         trial: Trial = None,
     ):
         super(Camera, self).__init__()
-        self.guiWin = mainWin
+        self.mainWin = mainWin
         self.signals = CameraSignals()
         self.camNum = camNum
         self.camName = camName
@@ -581,7 +581,7 @@ class Camera(QObject):
         """updates the status"""
         # send the status to the status bar
         try:
-            self.guiWin.updateStatus(st)
+            self.mainWin.updateStatus(st)
         except:
             pass
 

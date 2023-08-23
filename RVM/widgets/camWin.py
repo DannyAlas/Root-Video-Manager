@@ -43,7 +43,7 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
             fps=fps,
             prevFPS=prevFPS,
             recFPS=recFPS,
-            guiWin=self,
+            mainWin=self,
             trial=None,
         )
         log.debug(f"Created camera {camName} with camNum {camNum}")
