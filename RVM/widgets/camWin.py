@@ -87,6 +87,9 @@ class CameraPreviewWindow(QtWidgets.QMainWindow):
         self.startPreview()
         super(CameraPreviewWindow, self).show()
 
+    def refresh(self):
+        pass
+
     def close(self):
         """
         Stops the video player thread.

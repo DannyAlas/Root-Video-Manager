@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from typing import Literal, Union
 
 from bases import ProjectSettings
@@ -8,6 +9,14 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from widgets import *
 
 log = logging.getLogger()
+
+
+def logging_exept_hook(exctype, value, traceback):
+    log.critical(f"{str(exctype).upper()}: {value}\n{traceback}")
+    sys.__excepthook__(exctype, value, traceback)
+
+
+sys.excepthook = logging_exept_hook
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -196,6 +205,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 def removeDockWidget(self, dockWidget):
                     self.layout().removeWidget(dockWidget)
                     dockWidget.closeEvent(event=QtGui.QCloseEvent())
+
+                def close(self):
+                    for dw in self.findChildren(QtWidgets.QDockWidget):
+                        dw.close()
+                        self.removeDockWidget(dw)
+                    super(Widget, self).close()
+
+                def refresh(self):
+                    pass
 
             widget = Widget()
             widget.setLayout(grid)
@@ -533,7 +551,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         for dockWidget in self.findChildren(QtWidgets.QDockWidget):
             if dockWidget != caller:
-                dockWidget.refresh()
+                try:
+                    dockWidget.refresh()
+                except:
+                    pass
 
     def settingsWindow(self):
         self.newSettingsWindow = ProjectSettingsDialog(
